@@ -4,7 +4,7 @@
 This document provides an overview of the 3D Printer Visualiser application, a PyQt-based GUI tool that integrates VTK for 3D visualisation and real time control.
 
 ## Current Look of the Program 
-![Screenshot 2024-01-06 040131.png](Screenshot%202024-01-06%20040131.png)
+![Screenshot 2024-01-06 052451.png](Screenshot%202024-01-06%20052451.png)
 
 ## Libraries Used
 - **PyQt5**: Used for creating the graphical user interface (GUI).
