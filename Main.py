@@ -13,7 +13,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Window setup
-        self.setWindowTitle("3D Printer Visualizer") # Set window title
+        self.setWindowTitle("3D Printer Visualiser") # Set window title
         self.setGeometry(100, 100, 800, 600)         # Set initial window position & size
 
         self.setupVtkWindow() # Runs setup function for the renderer
@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self.vtkWidget.GetRenderWindow().AddRenderer(self.renderer)        # Adds the self.renderer to the QVTKRenderWindowInteractor's VTK render window to be displayed in PyQt
         self.interactor = self.vtkWidget.GetRenderWindow().GetInteractor() # Gets the QVTKRenderWindowInteractor's interactor for later use
 
+        ### START HERE ###
         # Sphere setup
         sphere = vtk.vtkSphereSource()                          # Construct a sphere with radius=0.5 and default resolution 8 in both Phi and Theta directions
         sphere.SetThetaResolution(100)                          # Sets the number of points in the longitude direction to 100
@@ -48,6 +49,25 @@ class MainWindow(QMainWindow):
 
         # Add the sphere actor to the renderer
         self.renderer.AddActor(sphereActor) # Adds the sphere actor to the 3D scene
+        ### END HERE ###
+
+        ### START HERE ###
+        # Sphere setup
+        sphere = vtk.vtkSphereSource()                          # Construct a sphere with radius=0.5 and default resolution 8 in both Phi and Theta directions
+        sphere.SetCenter(0.25, 0.25, 0.25)
+        sphere.SetThetaResolution(100)                          # Sets the number of points in the longitude direction to 100
+        sphere.SetPhiResolution(100)                            # Sets the number of points in the latitude direction to 100
+        sphereMapper = vtk.vtkPolyDataMapper()                  # Creates a vtkpolydatamapper class to store polygonal data (vertices, lines and faces)
+        sphereMapper.SetInputConnection(sphere.GetOutputPort()) # Converts the sphere data to the mapper where it can be understood and rendered by the graphics hardware
+        sphereActor = vtk.vtkActor()                            # Creates a vtkactor class to represent an entity in the 3D scene
+        sphereActor.SetMapper(sphereMapper)                     # Links the geometry provided by sphereMapper to sphereActor
+
+        # Set sphere color
+        sphereActor.GetProperty().SetColor(0, 1, 0)  # Set the sphere's colour to red
+
+        # Add the sphere actor to the renderer
+        self.renderer.AddActor(sphereActor) # Adds the sphere actor to the 3D scene
+        ### END HERE ###
 
         # Adjust camera and lighting
         self.renderer.SetBackground(0.3, 0.3, 0.3)  # A dark blue-ish background
