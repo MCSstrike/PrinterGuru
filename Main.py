@@ -44,14 +44,16 @@ class MainWindow(QMainWindow):
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame) # Puts a embeded VTK render window inside a Qt application, in this case self.frame
         self.vl.addWidget(self.vtkWidget) # Adds the VTK render window interactor to the layout self.vl
 
+        self.getFileNames() # Get the printer model file names from the provided directory
         if (int(self.config["DEFAULT"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
             self.rebuildPrinterModel()
 
         # Object setup
-        model = vtk.vtkOBJImporter()                 # Source object to read .stl files
-        model.SetFileName("processed.obj")           # Sets the file name of the obj to be converted and viewed
-        model.SetFileNameMTL("Prusa-i3-MK3S\\Prusa-i3-MK3S-v2.mtl") # Sets the mtl file for the obj
-        model.Read()                                 # Read and import the OBJ data
+        model = vtk.vtkOBJImporter()       # Source object to read .stl files
+        model.SetFileName("processed.obj") # Sets the file name of the obj to be converted and viewed
+        filePath = self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile # Generates the relative file address
+        model.SetFileNameMTL(filePath)     # Sets the mtl file for the obj
+        model.Read()                       # Read and import the OBJ data
 
         # Add the imported graphics to the renderer
         model.SetRenderWindow(self.vtkWidget.GetRenderWindow()) # Setting the renderer for the 'model' object to be rendered in
@@ -68,6 +70,16 @@ class MainWindow(QMainWindow):
         # Arranges and displays widgets within the main window
         self.frame.setLayout(self.vl)     # Sets self.vl QVBoxLayout instance to be displayed inside self.frame, arranged vertically
         self.setCentralWidget(self.frame) # Sets self.frame as the central widget of the main window, making it the primary content area
+
+    def getFileNames(self):
+        # Import and get printer model, .obj, and .mtl file names in specified folder
+        dirList = os.listdir(self.config["DEFAULT"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
+        for i in range(len(dirList)):            # Repeats for each file in folder (should only be 2)
+            extension = dirList[i].split(".")[1] # Sets the extension to the file extension of the current file
+            if (extension == "mtl"):             # Checks if current file is a .mtl file
+                self.mtlFile = dirList[i]        # If it is a .mtl file it writes the current file name to mtlFile
+            elif (extension == "obj"):           # Checks if current file is an .obj file
+                self.objFile = dirList[i]        # If it is a .obj file it writes the current file name to objFile
 
     # Setup menu bar
     def addMenuBar(self):
@@ -104,18 +116,10 @@ class MainWindow(QMainWindow):
         self.dockWidget.setWidget(self.dockWidgetContents)         # Add the widget to the dock widget
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dockWidget) # Add the dock widget to the main window
 
+    # Process the printer obj file to a compatible format for the vtk library
     def rebuildPrinterModel(self):
-        # Import and get printer model, .obj, and .mtl file names in specified folder
-        dirList = os.listdir(self.config["DEFAULT"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
-        for i in range(len(dirList)):            # Repeats for each file in folder (should only be 2)
-            extension = dirList[i].split(".")[1] # Sets the extension to the file extension of the current file
-            if (extension == "mtl"):             # Checks if current file is a .mtl file
-                mtlFile = dirList[i]             # If it is a .mtl file it writes the current file name to mtlFile
-            elif (extension == "obj"):           # Checks if current file is an .obj file
-                objFile = dirList[i]             # If it is a .obj file it writes the current file name to objFile
-
         # Open and process object model to output string
-        filePath = self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + objFile # Generates the relative file address
+        filePath = self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
         file = open(filePath)              # Opens the 3D Printer Model file as read only
         output = open("processed.obj", "w") # Makes and opens processed.obj document as write only
         content = file.readlines()          # Reads the 3D printer model file into the content variable
@@ -127,7 +131,7 @@ class MainWindow(QMainWindow):
                 value += 5                                   # Adds five to value variable to prepare it to detect the next multiple of five percentage
             currentLine = content[i].split(" ")              # Splits the current line by spaces
             if (currentLine[0] == "mtllib"):                 # Checks if the first section of the current line is mtllib, relating to the material library
-                filePath = (self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + mtlFile) # Generates the relative file directory for the .mtl file
+                filePath = (self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
                 output.write(currentLine[0] + " " + filePath + "\n") # Re-writes the correct .mtl file in its place
             elif (currentLine[0] == "vt"):                           # Checks if the first section of the current line is vt, relating to texture mapping
                 output.write(currentLine[0] + " " + currentLine[1] + " " + currentLine[2] + "\n") # Writes the vt line with the correct formating
