@@ -45,8 +45,9 @@ class MainWindow(QMainWindow):
         file = open("Prusa-i3-MK3S-v2.obj")
         content = file.readlines()
         output = ""
+        length = len(content)
         for i in range(len(content)):
-            print(i)
+            print(f"{i}, {round(i/length*100, 2)}%")
             currentLine = content[i].split(" ")
             if (currentLine[0] == "mtllib"):
                 output += currentLine[0] + " " + mtlFile + "\n"
