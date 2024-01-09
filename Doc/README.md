@@ -4,7 +4,7 @@
 This document provides an overview of the 3D Printer Visualiser application, a PyQt-based GUI tool that integrates VTK for 3D visualisation and real time control.
 
 ## Current Look of the Program 
-![Screenshot 2024-01-06 054636.png](Screenshot%202024-01-06%20054636.png)
+![Screenshot 2024-01-08 060622.png](Screenshot%202024-01-08%20060622.png)
 
 ## Libraries Used
 - **PyQt5**: Used for creating the graphical user interface (GUI).
@@ -36,6 +36,7 @@ A menu bar is added to the main window with the following functionality:
 ## Current Status
 As of now, the application:
 - Initializes and displays the main window with a 3D visualization area and a dockable sidebar.
+- Imports and renders OBJ file soon to be multiple parts for the printer simulation
 - Contains a menu bar to toggle the visibility of the dock widget.
 - Includes buttons within the dock widget, but these buttons are NOT YET FUNCTIONAL.
 

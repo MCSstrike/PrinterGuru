@@ -1,4 +1,5 @@
 # Importing all required libraries
+import os
 import sys
 import vtk # Visualisation toolkit
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout
@@ -29,31 +30,56 @@ class MainWindow(QMainWindow):
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame) # Puts a embeded VTK render window inside a Qt application, in this case self.frame
         self.vl.addWidget(self.vtkWidget) # Adds the VTK render window interactor to the layout self.vl
 
-        # Initialise the VTK renderer and add it to the VTK window
-        self.renderer = vtk.vtkRenderer() # Create a vtkRenderer with a black background, a white ambient light, two-sided lighting turned on, a viewport of (0,0,1,1), and backface culling turned off.
+        # Import and get printer model and mtl file names in specified folder
+        printerModelDir = "Prusa-i3-MK3S"        # Printer 3D Model folder containing the .obj and related .mtl files
+        dirList = os.listdir(printerModelDir)    # Lists the files in the selected folder
+        for i in range(len(dirList)):            # Repeats for each file in folder (should only be 2)
+            extension = dirList[i].split(".")[1] # Sets the extension to the file extension of the current file
+            if (extension == "mtl"):             # Checks if current file is a .mtl file
+                mtlFile = dirList[i]             # If it is a .mtl file it writes the current file name to mtlFile
+            elif (extension == "obj"):           # Checks if current file is an .obj file
+                objFile = dirList[i]             # If it is a .obj file it writes the current file name to objFile
+
+        # Open and process object model to output string
+        #print(printerModelDir + "\\" + objectFile)
+        file = open("Prusa-i3-MK3S-v2.obj")
+        content = file.readlines()
+        output = ""
+        for i in range(len(content)):
+            print(i)
+            currentLine = content[i].split(" ")
+            if (currentLine[0] == "mtllib"):
+                output += currentLine[0] + " " + mtlFile + "\n"
+            if (currentLine[0] == "vt"):
+                output += currentLine[0] + " " + currentLine[1] + " " + currentLine[2] + "\n"
+            else:
+                for j in range(len(currentLine)-1):
+                    output += currentLine[j] + " "
+                output += currentLine[-1]
+        file.close()
+
+        # Open and write output string to processed.obj file
+        file = open("processed.obj", "w")
+        file.write(output)
+        file.close()
+
+        ### START OBJECT HERE ###
+        # Object setup
+        model = vtk.vtkOBJImporter()                 # Source object to read .stl files
+        model.SetFileName("processed.obj")           # Sets the file name of the obj to be converted and viewed
+        model.SetFileNameMTL("Prusa-i3-MK3S-v2.mtl") # Sets the mtl file for the obj
+        model.Read()                                 # Read and import the OBJ data
+
+        # Add the imported graphics to the renderer
+        model.SetRenderWindow(self.vtkWidget.GetRenderWindow()) # Setting the renderer for the 'model' object to be rendered in
+        model.Update() # Updates the model object and converts the stl to vtk format
+
+        self.renderer = model.GetRenderer()                                # Gets the renderer for the model for later use
         self.vtkWidget.GetRenderWindow().AddRenderer(self.renderer)        # Adds the self.renderer to the QVTKRenderWindowInteractor's VTK render window to be displayed in PyQt
         self.interactor = self.vtkWidget.GetRenderWindow().GetInteractor() # Gets the QVTKRenderWindowInteractor's interactor for later use
 
-        ### START OBJECT HERE ###
-        # Sphere setup
-        model = vtk.vtkSTLReader()            # Source object to read .stl files
-        model.SetFileName("cube-Test-02.stl") # Sets the file name of the stl to be converted and viewed
-        model.Update()                        # Updates the model object and converts the stl to vtk format
-
-        modelMapper = vtk.vtkPolyDataMapper()                 # Creates a vtkpolydatamapper class to store polygonal data (vertices, lines and faces)
-        modelMapper.SetInputConnection(model.GetOutputPort()) # Converts the sphere data to the mapper where it can be understood and rendered by the graphics hardware
-        modelActor = vtk.vtkActor()                           # Creates a vtkactor class to represent an entity in the 3D scene
-        modelActor.SetMapper(modelMapper)                     # Links the geometry provided by sphereMapper to sphereActor
-
-        # Set sphere color
-        modelActor.GetProperty().SetColor(1, 0, 0)  # Set the sphere's colour to red
-
-        # Add the sphere actor to the renderer
-        self.renderer.AddActor(modelActor) # Adds the sphere actor to the 3D scene
-        ### STOP OBJECT HERE ###
-
         # Adjust camera and lighting
-        self.renderer.SetBackground(0.3, 0.3, 0.3)  # A dark blue-ish background
+        self.renderer.SetBackground(0.5, 0.5, 0.5) # A light gray background
         self.interactor.Initialize() # Initalises the interactor to prepare it for interaction
 
         # Arranges and displays widgets within the main window
