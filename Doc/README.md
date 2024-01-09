@@ -1,4 +1,4 @@
-# 3D Printer Visualizer Application
+# 3D Printer Visualiser Application
 
 ## Overview
 This document provides an overview of the 3D Printer Visualiser application, a PyQt-based GUI tool that integrates VTK for 3D visualisation and real time control.
@@ -8,7 +8,7 @@ This document provides an overview of the 3D Printer Visualiser application, a P
 
 ## Libraries Used
 - **PyQt5**: Used for creating the graphical user interface (GUI).
-- **VTK (Visualization Toolkit)**: Utilized for rendering 3D graphics within the PyQt application.
+- **VTK (Visualisation Toolkit)**: Utilised for rendering 3D graphics within the PyQt application.
 
 ## Application Structure
 
@@ -16,7 +16,7 @@ This document provides an overview of the 3D Printer Visualiser application, a P
 The application's main window (`MainWindow`) is created as an instance of `QMainWindow`. It serves as the primary window where other widgets and layouts are added.
 
 ### VTK Integration
-A `QVTKRenderWindowInteractor` widget is used to embed VTK's rendering capabilities into the PyQt application. This widget displays the 3D visualization and handles user interactions.
+A `QVTKRenderWindowInteractor` widget is used to embed VTK's rendering capabilities into the PyQt application. This widget displays the 3D visualisation and handles user interactions.
 
 ### Dock Widget
 A `QDockWidget` (`self.dockWidget`) is added to the left side of the main window. It is intended to hold various control elements like buttons and sliders. Currently, this dock widget contains:
@@ -36,13 +36,15 @@ A menu bar is added to the main window with the following functionality:
 ## Current Status
 As of now, the application:
 - Initializes and displays the main window with a 3D visualization area and a dockable sidebar.
-- Imports and renders OBJ file soon to be multiple parts for the printer simulation
+- Processes the 3D Printer OBJ model file when the user sets it to do so. This will run once then will not run again untill asked to do so in order to save time on program launch after the initial launch
+- Imports and renders the whole OBJ for the printer simulation
 - Contains a menu bar to toggle the visibility of the dock widget.
 - Includes buttons within the dock widget, but these buttons are NOT YET FUNCTIONAL.
 
 ## Next Steps
 Future development will focus on:
 - Implementing functionality and adding more control buttons in the dock widget.
+- Splitting the OBJ file into separate meshes in order to move each axes speartely
 - Enhancing the 3D visualization capabilities and making the first 3D printer model to simulate.
 - Integrating actual 3D printer controls and feedback.
 
