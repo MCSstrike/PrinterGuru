@@ -3,6 +3,7 @@ import os
 import sys
 from configobj import ConfigObj
 import time
+import threading
 import vtk # Visualisation toolkit
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
@@ -116,34 +117,60 @@ class MainWindow(QMainWindow):
         self.dockWidget.setWidget(self.dockWidgetContents)         # Add the widget to the dock widget
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dockWidget) # Add the dock widget to the main window
 
-    # Process the printer obj file to a compatible format for the vtk library
+    # Method to use multithreading to run though and process the 3D printer model file
     def rebuildPrinterModel(self):
-        # Open and process object model to output string
+        # Open and process input model data and opening output file
         filePath = self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
-        file = open(filePath)              # Opens the 3D Printer Model file as read only
-        output = open("processed.obj", "w") # Makes and opens processed.obj document as write only
-        content = file.readlines()          # Reads the 3D printer model file into the content variable
-        length = len(content)               # Calculates the number of lines in the variable
-        value = 0                           # Sets value variable to zero for use in printing the converted percentage
-        for i in range(length):             # Loops for each line in the variable
-            if (round(i / length * 100, 0) == value):        # Checks if the current percentage is equal to a multiple of five
-                print(f"{i}, {round(i / length * 100, 0)}%") # Prints the current line in the .obj file and the percentage of the way through the file
-                value += 5                                   # Adds five to value variable to prepare it to detect the next multiple of five percentage
-            currentLine = content[i].split(" ")              # Splits the current line by spaces
-            if (currentLine[0] == "mtllib"):                 # Checks if the first section of the current line is mtllib, relating to the material library
-                filePath = (self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
-                output.write(currentLine[0] + " " + filePath + "\n") # Re-writes the correct .mtl file in its place
-            elif (currentLine[0] == "vt"):                           # Checks if the first section of the current line is vt, relating to texture mapping
-                output.write(currentLine[0] + " " + currentLine[1] + " " + currentLine[2] + "\n") # Writes the vt line with the correct formating
-            else:                                      # For all other first sections, the line remains unchanged
-                for j in range(len(currentLine) - 1):  # Loops for the number of sections in the current line minus one
-                    output.write(currentLine[j] + " ") # Builds the current line
-                output.write(currentLine[-1])          # Adds the end of the current line separately to remove space at the end of the line
-        file.close()   # Closes the original Printer 3D Model file
-        output.close() # Saves and closes the output file
+        file = open(filePath)      # Opens the 3D Printer Model file as read only
+        content = file.readlines() # Reads the 3D printer model file into the content variable
+        file.close()               # Closes the original Printer 3D Model file
+        length = len(content)      # Calculates the number of lines in the variable
+
+        # Setting up threading variables
+        numThreads = int(self.config['DEFAULT']['CPUThreads']) # Gets the number
+        chunkSize = length // numThreads                     # Calculate a chunk size relative to the number of threads being used
+        threads = []                                         # Initialises the threads list
+        outputLines = [[] for i in range(numThreads)]     # Loops to make a list of empty arrays for each thread used
+
+        # Setting up threading actions
+        for i in range(numThreads):   # Loops for each thread used
+            startLine = i * chunkSize # Calculates the start line based on the chunkSize
+            if i < numThreads - 1:    # True for every time appart from the last loop
+                endLine = (i + 1) * chunkSize # Sets the end of the chunk to the begining of the next
+            else:                     # For the last loop
+                endLine = length      # Sets the end of the chunk to the end of the file
+            thread = threading.Thread(target=self.processChunk, args=(i, startLine, endLine, content, outputLines)) # Makes a new thead object with a target and arguments ready to run
+            threads.append(thread) # adds the thread object to the list threads
+            thread.start()         # starts all the created thread objects
+
+        # Wait for all threads to finish
+        for thread in threads: # Cycles through each thread in threads
+            thread.join() # Joins the thread to the main thread
+
+        # Write to the output file in the original order
+        with open("processed.obj", "w") as output: # Makes and opens processed.obj document as write only
+            for buffer in outputLines:           # Cycles through each line stored in outputBuffers
+                output.writelines(buffer)          # Writes each line to the output file
+
 
         self.config['DEFAULT']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
         self.config.write()                                 # Writes the config save to the settings.ini file
+
+    # Function to process the printer obj to a compatible format for the vtk library
+    def processChunk(self, chunk_id, startLine, endLine, content, outputLines):
+        for i in range(startLine, endLine): # Loops for each line this thread has to process
+            output = ""                     # Initialises the output variable
+            currentLine = content[i].split(" ") # Splits the line by spaces
+            if (currentLine[0] == "mtllib"):    # Checks if the first section of the current line is mtllib, relating to the material library
+                filePath = (self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
+                output += currentLine[0] + " " + filePath + "\n" # Re-writes the correct .mtl file in its place
+            elif (currentLine[0] == "vt"):                       # Checks if the first section of the current line is vt, relating to texture mapping
+                output += currentLine[0] + " " + currentLine[1] + " " + currentLine[2] + "\n" # Writes the vt line with the correct formating
+            else:                                     # For all other first sections, the line remains unchanged
+                for j in range(len(currentLine) - 1): # Loops for the number of sections in the current line minus one
+                    output += currentLine[j] + " "    # Builds the current line
+                output += currentLine[-1]             # Adds the end of the current line separately to remove space at the end of the line
+            outputLines[chunk_id].append(output)    # Appends the output line to the outputBuffers array
 
 # Main function of the script
 def main():
