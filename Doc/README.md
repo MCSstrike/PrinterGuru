@@ -36,7 +36,7 @@ A menu bar is added to the main window with the following functionality:
 ## Current Status
 As of now, the application:
 - Initializes and displays the main window with a 3D visualization area and a dockable sidebar.
-- Processes the 3D Printer OBJ model file when the user sets it to do so. This will run once then will not run again untill asked to do so in order to save time on program launch after the initial launch
+- Processes the 3D Printer OBJ model file when the user sets it to do so, using multithreading for speed. This will run once then will not run again until asked to do so in order to save time on program launch after the initial launch
 - Imports and renders the whole OBJ for the printer simulation
 - Contains a menu bar to toggle the visibility of the dock widget.
 - Includes buttons within the dock widget, but these buttons are NOT YET FUNCTIONAL.

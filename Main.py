@@ -46,13 +46,13 @@ class MainWindow(QMainWindow):
         self.vl.addWidget(self.vtkWidget) # Adds the VTK render window interactor to the layout self.vl
 
         self.getFileNames() # Get the printer model file names from the provided directory
-        if (int(self.config["DEFAULT"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
+        if (int(self.config["PRINTER_MODEL"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
             self.rebuildPrinterModel()
 
         # Object setup
         model = vtk.vtkOBJImporter()       # Source object to read .stl files
         model.SetFileName("processed.obj") # Sets the file name of the obj to be converted and viewed
-        filePath = self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile # Generates the relative file address
+        filePath = self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile # Generates the relative file address
         model.SetFileNameMTL(filePath)     # Sets the mtl file for the obj
         model.Read()                       # Read and import the OBJ data
 
@@ -72,9 +72,52 @@ class MainWindow(QMainWindow):
         self.frame.setLayout(self.vl)     # Sets self.vl QVBoxLayout instance to be displayed inside self.frame, arranged vertically
         self.setCentralWidget(self.frame) # Sets self.frame as the central widget of the main window, making it the primary content area
 
+        # Extracting actors from the renderer
+        self.actors = self.renderer.GetActors()     # Gets a list of all the actors that are a part of the scene managed by this renderer
+        self.itemRanges = self.generateItemRanges() # Retrieves item ranges from the config and makes them into an array
+
+        self.actors.InitTraversal()                     # Sets up the collection of actors to be iterated through
+        self.actorCollection = vtk.vtkActorCollection() # Creates actor collection object
+
+        for item in range(self.actors.GetNumberOfItems()): # Cycles through the number of items (number of nets in the object file)
+            self.actor = self.actors.GetNextActor()        # Sets self.actor to the current actor in the list
+            self.actorCollection.AddItem(self.actor)       # Adds each actor in turn to the actor collection list
+
+        XPos = self.config["DEFAULT"]["XPosition"]
+        YPos = self.config["DEFAULT"]["YPosition"]
+        ZPos = self.config["DEFAULT"]["ZPosition"]
+        position = [XPos, YPos, ZPos]
+        self.updatePosition(position)
+
+
+
+
+    def updatePosition(self, position):
+        #for i, item in enumerate(self.itemRanges):
+        #    print("Direction " + str(i) + " " + str(item))
+        for item in range(len(self.itemRanges)):
+            print("Direction " + str(item) + " " + str(self.itemRanges[item]))
+            for itemRange in self.itemRanges[item]:
+                print("Ranges " + str(itemRange))
+                for i in range(itemRange[0], itemRange[1]):
+                    print("I is this " + str(i))
+                    self.actor = self.actorCollection.GetItemAsObject(i)
+                    transform = vtk.vtkTransform()  # Create a vtkTransform object
+                    if item == 0: # Extruder
+                        transform.Translate(0, 0, 1200)
+                    if item == 1: # Bed
+                        transform.Translate(0, 0, 800)
+                    if item == 2: # Gantry
+                        transform.Translate(0, 0, 400)
+
+                    self.actor.SetUserTransform(transform)
+
+        self.renderer.GetRenderWindow().Render()
+
+
     def getFileNames(self):
         # Import and get printer model, .obj, and .mtl file names in specified folder
-        dirList = os.listdir(self.config["DEFAULT"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
+        dirList = os.listdir(self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
         for i in range(len(dirList)):            # Repeats for each file in folder (should only be 2)
             extension = dirList[i].split(".")[1] # Sets the extension to the file extension of the current file
             if (extension == "mtl"):             # Checks if current file is a .mtl file
@@ -120,7 +163,7 @@ class MainWindow(QMainWindow):
     # Method to use multithreading to run though and process the 3D printer model file
     def rebuildPrinterModel(self):
         # Open and process input model data and opening output file
-        filePath = self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
+        filePath = self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
         file = open(filePath)      # Opens the 3D Printer Model file as read only
         content = file.readlines() # Reads the 3D printer model file into the content variable
         file.close()               # Closes the original Printer 3D Model file
@@ -149,20 +192,38 @@ class MainWindow(QMainWindow):
 
         # Write to the output file in the original order
         with open("processed.obj", "w") as output: # Makes and opens processed.obj document as write only
-            for buffer in outputLines:           # Cycles through each line stored in outputBuffers
+            for buffer in outputLines:             # Cycles through each line stored in outputBuffers
                 output.writelines(buffer)          # Writes each line to the output file
 
+        # Updating settings file
+        self.config['PRINTER_MODEL']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
+        self.config.write()                                       # Writes the config save to the settings.ini file
 
-        self.config['DEFAULT']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
-        self.config.write()                                 # Writes the config save to the settings.ini file
+    # Generates a structured array of items in the object file
+    def generateItemRanges(self):
+        # Retrieves Y, Z, X item ranges from the settings.ini file
+        XItems = self.config["PRINTER_MODEL"]["XItems"] # Model items that make up the X axis
+        YItems = self.config["PRINTER_MODEL"]["YItems"] # Model items that make up the Y axis
+        ZItems = self.config["PRINTER_MODEL"]["ZItems"] # Model items that make up the Z axis
+
+        # Makes the structured array using item ranges
+        itemRanges = [XItems, YItems, ZItems] # Puts item range strings into an array
+        output = []                           # Initialises output list
+        for ranges in itemRanges:             # Loops for each value in ranges
+            subOutput = []                    # Initialises sub output list
+            for range in ranges.split(" "):   # Loops for each range in the split item string
+                number = range.split("-")     # Splits string range into its two parts and saves into number
+                subOutput.append([int(number[0]), int(number[1])]) # Appends int value of number list to subOutput
+            output.append(subOutput) # Appends subOutput to the end of output
+        return output                # Returns structured array
 
     # Function to process the printer obj to a compatible format for the vtk library
-    def processChunk(self, chunk_id, startLine, endLine, content, outputLines):
+    def processChunk(self, chunkId, startLine, endLine, content, outputLines):
         for i in range(startLine, endLine): # Loops for each line this thread has to process
             output = ""                     # Initialises the output variable
             currentLine = content[i].split(" ") # Splits the line by spaces
             if (currentLine[0] == "mtllib"):    # Checks if the first section of the current line is mtllib, relating to the material library
-                filePath = (self.config["DEFAULT"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
+                filePath = (self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
                 output += currentLine[0] + " " + filePath + "\n" # Re-writes the correct .mtl file in its place
             elif (currentLine[0] == "vt"):                       # Checks if the first section of the current line is vt, relating to texture mapping
                 output += currentLine[0] + " " + currentLine[1] + " " + currentLine[2] + "\n" # Writes the vt line with the correct formating
@@ -170,7 +231,7 @@ class MainWindow(QMainWindow):
                 for j in range(len(currentLine) - 1): # Loops for the number of sections in the current line minus one
                     output += currentLine[j] + " "    # Builds the current line
                 output += currentLine[-1]             # Adds the end of the current line separately to remove space at the end of the line
-            outputLines[chunk_id].append(output)    # Appends the output line to the outputBuffers array
+            outputLines[chunkId].append(output)    # Appends the output line to the outputBuffers array
 
 # Main function of the script
 def main():
@@ -178,6 +239,7 @@ def main():
     mainWin = MainWindow()       # Creates a MainWindow instance stored but not displayed
     mainWin.show()               # Makes the MainWindow visible
     sys.exit(app.exec_())        # Starts the applications main loop to respond to inputs and exits the application loop ends (closing the window)
+
 
 # Checks if script is the main program being run
 if __name__ == '__main__':
