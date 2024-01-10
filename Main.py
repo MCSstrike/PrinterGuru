@@ -83,32 +83,26 @@ class MainWindow(QMainWindow):
             self.actor = self.actors.GetNextActor()        # Sets self.actor to the current actor in the list
             self.actorCollection.AddItem(self.actor)       # Adds each actor in turn to the actor collection list
 
-        XPos = self.config["DEFAULT"]["XPosition"]
-        YPos = self.config["DEFAULT"]["YPosition"]
-        ZPos = self.config["DEFAULT"]["ZPosition"]
+        XPos = int(self.config["DEFAULT"]["XPosition"])
+        YPos = int(self.config["DEFAULT"]["YPosition"])
+        ZPos = int(self.config["DEFAULT"]["ZPosition"])
         position = [XPos, YPos, ZPos]
         self.updatePosition(position)
 
-
-
-
     def updatePosition(self, position):
-        #for i, item in enumerate(self.itemRanges):
-        #    print("Direction " + str(i) + " " + str(item))
-        for item in range(len(self.itemRanges)):
-            print("Direction " + str(item) + " " + str(self.itemRanges[item]))
-            for itemRange in self.itemRanges[item]:
+        for direction, item in enumerate(self.itemRanges):
+            print("Direction " + str(direction) + " " + str(item))
+            for itemRange in item:
                 print("Ranges " + str(itemRange))
                 for i in range(itemRange[0], itemRange[1]):
-                    print("I is this " + str(i))
                     self.actor = self.actorCollection.GetItemAsObject(i)
                     transform = vtk.vtkTransform()  # Create a vtkTransform object
-                    if item == 0: # Extruder
-                        transform.Translate(0, 0, 1200)
-                    if item == 1: # Bed
-                        transform.Translate(0, 0, 800)
-                    if item == 2: # Gantry
-                        transform.Translate(0, 0, 400)
+                    if direction == 0: # Extruder
+                        transform.Translate(position[0], 0, 0)
+                    if direction == 1: # Bed
+                        transform.Translate(0, position[1], 0)
+                    if direction == 2: # Gantry
+                        transform.Translate(0, 0, position[2])
 
                     self.actor.SetUserTransform(transform)
 
@@ -239,7 +233,6 @@ def main():
     mainWin = MainWindow()       # Creates a MainWindow instance stored but not displayed
     mainWin.show()               # Makes the MainWindow visible
     sys.exit(app.exec_())        # Starts the applications main loop to respond to inputs and exits the application loop ends (closing the window)
-
 
 # Checks if script is the main program being run
 if __name__ == '__main__':
