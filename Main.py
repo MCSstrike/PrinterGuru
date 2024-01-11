@@ -18,8 +18,8 @@ class MainWindow(QMainWindow):
 
         # Window setup
         self.setWindowTitle("3D Printer Visualiser") # Set window title
-        resolution = config["SETUP"]["WindowResolution"].split("x")
-        self.setGeometry(100, 100, int(resolution[0]), int(resolution[1]))         # Set initial window position & size
+        resolution = config["SETUP"]["WindowResolution"].split("x")        # Get initial resolution from config file
+        self.setGeometry(100, 100, int(resolution[0]), int(resolution[1])) # Set initial window position & size
 
         # vtk and menu setup
         self.setupVtkWindow() # Runs setup function for the renderer
@@ -37,7 +37,7 @@ class MainWindow(QMainWindow):
         # Retrieves and prepares the printer model for importing and rendering
         self.getFileNames() # Get the printer model file names from the provided directory
         if (int(config["PRINTER_MODEL"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
-            self.rebuildPrinterModel() # Calls to rebuild the printer model
+            self.RebuildPrinterModel() # Calls to rebuild the printer model
 
         # Object setup
         model = vtk.vtkOBJImporter()       # Source object to read .stl files
@@ -90,10 +90,29 @@ class MainWindow(QMainWindow):
 
     # Method to reset camera position and focus
     def resetCameraView(self):
-        self.camera.SetPosition(500, -1400, 500)  # Set camera position
-        self.camera.SetFocalPoint(170, -200, 200) # Set focal point
-        self.camera.SetViewUp(0, 0, 1)            # Set the up direction for the camera
-        self.renderer.GetRenderWindow().Render()  # Updates renderer
+        coord = config["DEFAULT"]["cameraPosition"].split(" ")               # Gets camera position from config file
+        self.camera.SetPosition(int(coord[0]), int(coord[1]), int(coord[2])) # Set camera position
+        coord = config["DEFAULT"]["focalPoint"].split(" ")                     # Gets focal point from config file
+        self.camera.SetFocalPoint(int(coord[0]), int(coord[1]), int(coord[2])) # Set focal point
+        self.upDirection = int(config["DEFAULT"]["upDirection"]) # Gets up direction from config file
+        self.cameraSetViewUp()                                   # Sets camera direction
+        self.renderer.GetRenderWindow().Render()                 # Updates renderer
+
+    # Sets the camera's up direction as specified in the config file
+    def cameraSetViewUp(self):
+        match self.upDirection:                 # Match value of up direction
+            case 0:                             # +x
+                self.camera.SetViewUp(1, 0, 0)  # Set the up direction for camera
+            case 1:                             # +y
+                self.camera.SetViewUp(0, 1, 0)  # Set the up direction for camera
+            case 2:                             # +z
+                self.camera.SetViewUp(0, 0, 1)  # Set the up direction for camera
+            case 3:                             # -x
+                self.camera.SetViewUp(-1, 0, 1) # Set the up direction for camera
+            case 4:                             # -y
+                self.camera.SetViewUp(0, -1, 1) # Set the up direction for camera
+            case 5:                             # -z
+                self.camera.SetViewUp(0, 0, -1) # Set the up direction for camera
 
     # Method to update position with position x, y, z list
     def updatePrinterPosition(self, position):
@@ -128,17 +147,26 @@ class MainWindow(QMainWindow):
     # Setup menu bar
     def addMenuBar(self):
         # Create a menu bar
-        menuBar = self.menuBar()           # Adding menu bar to PyQt window
-        viewMenu = menuBar.addMenu("View") # Making viewMenu menu to pre existing menu bar
+        menuBar = self.menuBar()                # Adding menu bar to PyQt window
+        viewMenu = menuBar.addMenu("View")      # Adding view menu to menu bar
+        optionMenu = menuBar.addMenu("Options") # Adding options menu to menu bar
 
-        # Add an action to toggle the dock widget
+        # Adds dock toggle to view menu
         self.toggleDockAction = viewMenu.addAction("Toggle Dock")          # Adding toggle item to viewMenu menu
+        self.toggleDockAction.setCheckable(True)                           # Lets this action display a tick box beside itself
+        self.toggleDockAction.setChecked(True)                             # Sets this tick box by default
         self.toggleDockAction.triggered.connect(self.toggleDockVisibility) # Runs toggleDockVisibility method each time the action is triggered
 
+        # Adds initial printer model setup to options menu
+        self.printerModelSetup = optionMenu.addAction("Run Printer Model Setup")
+        self.printerModelSetup.triggered.connect(self.toggleDockVisibility)
     # Method to toggle the dock visibility
     def toggleDockVisibility(self):
         # Toggle the visibility of the dock widget
         self.dockWidget.setVisible(not self.dockWidget.isVisible()) # Toggles the dock visibility
+
+    #def printerItemsSetup(self):
+        #
 
     # Method to add a dock toolbar to the main window
     def addDockToolbar(self):
@@ -204,26 +232,36 @@ class MainWindow(QMainWindow):
         print("Y = " + str(YPos))
         print("Z = " + str(ZPos))
 
-    # Method to use multithreading to run and process the 3D printer model file
-    def rebuildPrinterModel(self):
+    # Rebuilds the printer object file to be compatible with vtk
+    def RebuildPrinterModel(self):
+        filePath = config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.objFile  # Generates the relative file address
+        self.rebuildObjectFile(filePath, "processed.obj") # Runs the 3D printer model file through the object processing method
+
+        # Updating settings file
+        config['PRINTER_MODEL']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
+        config.write()                                       # Writes the config save to the settings.ini file
+
+        # Method to use multithreading to run and process Object files
+
+    # Opens originalFile, processes it to work with vtk and outputs to processedFile
+    def rebuildObjectFile(self, originalFile, processedFile):
         # Open and process input model data and opening output file
-        filePath = config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
-        file = open(filePath)      # Opens the 3D Printer Model file as read only
-        content = file.readlines() # Reads the 3D printer model file into the content variable
-        file.close()               # Closes the original Printer 3D Model file
+        file = open(originalFile)      # Opens the model file as read only
+        content = file.readlines() # Reads the model file into the content variable
+        file.close()               # Closes the original model file
         length = len(content)      # Calculates the number of lines in the variable
 
         # Setting up threading variables
         numThreads = int(config['SETUP']['CPUThreads']) # Gets the number
-        chunkSize = length // numThreads                     # Calculate a chunk size relative to the number of threads being used
-        threads = []                                         # Initialises the threads list
-        outputLines = [[] for i in range(numThreads)]     # Loops to make a list of empty arrays for each thread used
+        chunkSize = length // numThreads                # Calculate a chunk size relative to the number of threads being used
+        threads = []                                    # Initialises the threads list
+        outputLines = [[] for i in range(numThreads)]   # Loops to make a list of empty arrays for each thread used
 
         # Setting up threading actions
         for i in range(numThreads):   # Loops for each thread used
             startLine = i * chunkSize # Calculates the start line based on the chunkSize
-            if i < numThreads - 1:    # True for every time appart from the last loop
-                endLine = (i + 1) * chunkSize # Sets the end of the chunk to the begining of the next
+            if i < numThreads - 1:    # True for every time apart from the last loop
+                endLine = (i + 1) * chunkSize # Sets the end of the chunk to the beginning of the next
             else:                     # For the last loop
                 endLine = length      # Sets the end of the chunk to the end of the file
             thread = threading.Thread(target=self.processChunk, args=(i, startLine, endLine, content, outputLines)) # Makes a new thead object with a target and arguments ready to run
@@ -235,13 +273,9 @@ class MainWindow(QMainWindow):
             thread.join() # Joins the thread to the main thread
 
         # Write to the output file in the original order
-        with open("processed.obj", "w") as output: # Makes and opens processed.obj document as write only
+        with open(processedFile, "w") as output: # Makes and opens processedFile document as write only
             for buffer in outputLines:             # Cycles through each line stored in outputBuffers
                 output.writelines(buffer)          # Writes each line to the output file
-
-        # Updating settings file
-        config['PRINTER_MODEL']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
-        config.write()                                       # Writes the config save to the settings.ini file
 
     # Generates a structured array of items in the object file
     def generateItemRanges(self):
@@ -310,8 +344,7 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         if self.isPanning:
             self.Pan()
         elif self.isRotating:
-            mainWin.camera.SetViewUp(0, 0, 1)  # Set the up direction for the camera
-
+            mainWin.cameraSetViewUp()  # Set the up direction for the camera
             self.Rotate()
         return
 
@@ -327,25 +360,29 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.EndZoom()
         return
 
-    # Reads and runs setup for the config variable
+# Reads and runs setup for the config variable
 def getConfig(configFile): # Runs the config setup for the program
-    global config
+    # Config setup
+    global config                  # Initialises global config variable
     config = ConfigObj(configFile) # ConfigObj reads the file and reads the settings.ini file
 
-    # Lists the config file to the user
-    for section in config: # Loops for each section in the config file
-        print(f'[{section}]')   # Prints the section name for each section
-        for key, value in config[section].items(): # Loops for each value in the section
-            print(f'{key} = {value}')                   # Prints the key and value for each value
-        print()                                         # This adds empty line for better readability
-    time.sleep(int(config["SETUP"]["configDelay"])) # Waits for defined time to let the user read the config
+    # Debug setup
+    global debug                          # Initialises global debug variable
+    debug = int(config["SETUP"]["DEBUG"]) # Sets the debug variable to the integer value in the config file
 
+    # Lists the config file to the user
+    for section in config:    # Loops for each section in the config file
+        print(f'[{section}]') # Prints the section name for each section
+        for key, value in config[section].items():  # Loops for each value in the section
+            print(f'{key} = {value}')               # Prints the key and value for each value
+        print()                                     # This adds empty line for better readability
+    time.sleep(int(config["SETUP"]["configDelay"])) # Waits for defined time to let the user read the config
 
 # Main function of the script
 def main():
     app = QApplication(sys.argv) # Creates a QApplication instance to handle events and widgets
     getConfig("settings.ini")    # Get configuration from settings.ini
-    global mainWin
+    global mainWin               # Initialises global mainWin variable
     mainWin = MainWindow()       # Creates a MainWindow instance stored but not displayed
     mainWin.show()               # Makes the MainWindow visible
     sys.exit(app.exec_())        # Starts the applications main loop to respond to inputs and exits the application loop ends (closing the window)
