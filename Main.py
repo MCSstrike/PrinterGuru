@@ -16,29 +16,15 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.getConfig() # Get configuration
-
         # Window setup
         self.setWindowTitle("3D Printer Visualiser") # Set window title
-        resolution = self.config["DEFAULT"]["WindowResolution"].split("x")
+        resolution = config["SETUP"]["WindowResolution"].split("x")
         self.setGeometry(100, 100, int(resolution[0]), int(resolution[1]))         # Set initial window position & size
 
         # vtk and menu setup
         self.setupVtkWindow() # Runs setup function for the renderer
         self.addMenuBar()     # Runs setup function for the menu bar
         self.addDockToolbar() # Runs setup function for the toolbar dock
-
-    # Reads and runs setup for the config variable
-    def getConfig(self): # Runs the config setup for the program
-        self.config = ConfigObj('settings.ini') # ConfigObj reads the file and reads the settings.ini file
-
-        # Lists the config file to the user
-        for section in self.config: # Loops for each section in the config file
-            print(f'[{section}]')   # Prints the section name for each section
-            for key, value in self.config[section].items(): # Loops for each value in the section
-                print(f'{key} = {value}')                   # Prints the key and value for each value
-            print()                                         # This adds empty line for better readability
-        time.sleep(int(self.config["DEFAULT"]["configDelay"])) # Waits for defined time to let the user read the config
 
     # Method to set up the VTK window
     def setupVtkWindow(self):
@@ -50,13 +36,13 @@ class MainWindow(QMainWindow):
 
         # Retrieves and prepares the printer model for importing and rendering
         self.getFileNames() # Get the printer model file names from the provided directory
-        if (int(self.config["PRINTER_MODEL"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
+        if (int(config["PRINTER_MODEL"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
             self.rebuildPrinterModel() # Calls to rebuild the printer model
 
         # Object setup
         model = vtk.vtkOBJImporter()       # Source object to read .stl files
         model.SetFileName("processed.obj") # Sets the file name of the obj to be converted and viewed
-        filePath = self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile # Generates the relative file address
+        filePath = config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile # Generates the relative file address
         model.SetFileNameMTL(filePath)     # Sets the mtl file for the obj
         model.Read()                       # Read and import the OBJ data
 
@@ -96,9 +82,9 @@ class MainWindow(QMainWindow):
             self.actorCollection.AddItem(self.actor)       # Adds each actor in turn to the actor collection list
 
         # Setting initial printer position
-        XPos = int(self.config["DEFAULT"]["XPosition"]) # Get initial X position
-        YPos = int(self.config["DEFAULT"]["YPosition"]) # Get initial y position
-        ZPos = int(self.config["DEFAULT"]["ZPosition"]) # Get initial z position
+        XPos = int(config["DEFAULT"]["XPosition"]) # Get initial X position
+        YPos = int(config["DEFAULT"]["YPosition"]) # Get initial y position
+        ZPos = int(config["DEFAULT"]["ZPosition"]) # Get initial z position
         position = [XPos, YPos, ZPos]        # Create position coordinate list
         self.updatePrinterPosition(position) # Update printer position with coordinate list
 
@@ -131,7 +117,7 @@ class MainWindow(QMainWindow):
     # Scans model directory for file names
     def getFileNames(self):
         # Import and get printer model, .obj, and .mtl file names in specified folder
-        dirList = os.listdir(self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
+        dirList = os.listdir(config["PRINTER_MODEL"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
         for i in range(len(dirList)):            # Repeats for each file in folder (should only be 2)
             extension = dirList[i].split(".")[1] # Sets the extension to the file extension of the current file
             if (extension == "mtl"):             # Checks if current file is a .mtl file
@@ -175,7 +161,7 @@ class MainWindow(QMainWindow):
         self.xSlider = QSlider(Qt.Horizontal, self)
         self.xSlider.setMinimum(-42)
         self.xSlider.setMaximum(213)
-        self.xSlider.setValue(int(self.config['DEFAULT']['XPosition']))
+        self.xSlider.setValue(int(config['DEFAULT']['XPosition']))
         self.xSlider.setTickInterval(1)
         self.dockWidgetLayout.addWidget(self.xSlider)
 
@@ -185,7 +171,7 @@ class MainWindow(QMainWindow):
         self.ySlider = QSlider(Qt.Horizontal, self)
         self.ySlider.setMinimum(-77)
         self.ySlider.setMaximum(136)
-        self.ySlider.setValue(int(self.config['DEFAULT']['YPosition']))
+        self.ySlider.setValue(int(config['DEFAULT']['YPosition']))
         self.ySlider.setTickInterval(1)
         self.dockWidgetLayout.addWidget(self.ySlider)
 
@@ -195,7 +181,7 @@ class MainWindow(QMainWindow):
         self.zSlider = QSlider(Qt.Horizontal, self)
         self.zSlider.setMinimum(-209)
         self.zSlider.setMaximum(2)
-        self.zSlider.setValue(int(self.config['DEFAULT']['ZPosition']))
+        self.zSlider.setValue(int(config['DEFAULT']['ZPosition']))
         self.zSlider.setTickInterval(1)
         self.dockWidgetLayout.addWidget(self.zSlider)
 
@@ -221,14 +207,14 @@ class MainWindow(QMainWindow):
     # Method to use multithreading to run and process the 3D printer model file
     def rebuildPrinterModel(self):
         # Open and process input model data and opening output file
-        filePath = self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
+        filePath = config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
         file = open(filePath)      # Opens the 3D Printer Model file as read only
         content = file.readlines() # Reads the 3D printer model file into the content variable
         file.close()               # Closes the original Printer 3D Model file
         length = len(content)      # Calculates the number of lines in the variable
 
         # Setting up threading variables
-        numThreads = int(self.config['DEFAULT']['CPUThreads']) # Gets the number
+        numThreads = int(config['SETUP']['CPUThreads']) # Gets the number
         chunkSize = length // numThreads                     # Calculate a chunk size relative to the number of threads being used
         threads = []                                         # Initialises the threads list
         outputLines = [[] for i in range(numThreads)]     # Loops to make a list of empty arrays for each thread used
@@ -254,15 +240,15 @@ class MainWindow(QMainWindow):
                 output.writelines(buffer)          # Writes each line to the output file
 
         # Updating settings file
-        self.config['PRINTER_MODEL']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
-        self.config.write()                                       # Writes the config save to the settings.ini file
+        config['PRINTER_MODEL']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
+        config.write()                                       # Writes the config save to the settings.ini file
 
     # Generates a structured array of items in the object file
     def generateItemRanges(self):
         # Retrieves Y, Z, X item ranges from the settings.ini file
-        XItems = self.config["PRINTER_MODEL"]["XItems"] # Model items that make up the X axis
-        YItems = self.config["PRINTER_MODEL"]["YItems"] # Model items that make up the Y axis
-        ZItems = self.config["PRINTER_MODEL"]["ZItems"] # Model items that make up the Z axis
+        XItems = config["PRINTER_MODEL"]["XItems"] # Model items that make up the X axis
+        YItems = config["PRINTER_MODEL"]["YItems"] # Model items that make up the Y axis
+        ZItems = config["PRINTER_MODEL"]["ZItems"] # Model items that make up the Z axis
 
         # Makes the structured array using item ranges
         itemRanges = [XItems, YItems, ZItems] # Puts item range strings into an array
@@ -281,7 +267,7 @@ class MainWindow(QMainWindow):
             output = ""                     # Initialises the output variable
             currentLine = content[i].split(" ") # Splits the line by spaces
             if (currentLine[0] == "mtllib"):    # Checks if the first section of the current line is mtllib, relating to the material library
-                filePath = (self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
+                filePath = (config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.mtlFile) # Generates the relative file directory for the .mtl file
                 output += currentLine[0] + " " + filePath + "\n" # Re-writes the correct .mtl file in its place
             elif (currentLine[0] == "vt"):                       # Checks if the first section of the current line is vt, relating to texture mapping
                 output += currentLine[0] + " " + currentLine[1] + " " + currentLine[2] + "\n" # Writes the vt line with the correct formating
@@ -341,9 +327,24 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.EndZoom()
         return
 
+    # Reads and runs setup for the config variable
+def getConfig(configFile): # Runs the config setup for the program
+    global config
+    config = ConfigObj(configFile) # ConfigObj reads the file and reads the settings.ini file
+
+    # Lists the config file to the user
+    for section in config: # Loops for each section in the config file
+        print(f'[{section}]')   # Prints the section name for each section
+        for key, value in config[section].items(): # Loops for each value in the section
+            print(f'{key} = {value}')                   # Prints the key and value for each value
+        print()                                         # This adds empty line for better readability
+    time.sleep(int(config["SETUP"]["configDelay"])) # Waits for defined time to let the user read the config
+
+
 # Main function of the script
 def main():
     app = QApplication(sys.argv) # Creates a QApplication instance to handle events and widgets
+    getConfig("settings.ini")    # Get configuration from settings.ini
     global mainWin
     mainWin = MainWindow()       # Creates a MainWindow instance stored but not displayed
     mainWin.show()               # Makes the MainWindow visible
