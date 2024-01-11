@@ -7,7 +7,7 @@ import threading
 import vtk # Visualisation toolkit
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDockWidget, QVBoxLayout, QPushButton, QWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDockWidget, QVBoxLayout, QPushButton, QWidget, QSlider
 from PyQt5.QtCore import Qt  # This is to use Qt.LeftDockWidgetArea
 
 # Definition of the main window class
@@ -22,19 +22,21 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("3D Printer Visualiser") # Set window title
         self.setGeometry(100, 100, 800, 600)         # Set initial window position & size
 
+        # vtk and menu setup
         self.setupVtkWindow() # Runs setup function for the renderer
         self.addMenuBar()     # Runs setup function for the menu bar
         self.addDockToolbar() # Runs setup function for the toolbar dock
 
+    # Reads and runs setup for the config variable
     def getConfig(self): # Runs the config setup for the program
         self.config = ConfigObj('settings.ini') # ConfigObj reads the file and reads the settings.ini file
 
+        # Lists the config file to the user
         for section in self.config: # Loops for each section in the config file
             print(f'[{section}]')   # Prints the section name for each section
             for key, value in self.config[section].items(): # Loops for each value in the section
                 print(f'{key} = {value}')                   # Prints the key and value for each value
             print()                                         # This adds empty line for better readability
-
         time.sleep(int(self.config["DEFAULT"]["configDelay"])) # Waits for defined time to let the user read the config
 
     # Method to set up the VTK window
@@ -45,9 +47,10 @@ class MainWindow(QMainWindow):
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame) # Puts a embeded VTK render window inside a Qt application, in this case self.frame
         self.vl.addWidget(self.vtkWidget) # Adds the VTK render window interactor to the layout self.vl
 
+        # Retrieves and prepares the printer model for importing and rendering
         self.getFileNames() # Get the printer model file names from the provided directory
         if (int(self.config["PRINTER_MODEL"]["rebuildPrinterModel"])): # Rebuilds the processed object file when set to import a new printer
-            self.rebuildPrinterModel()
+            self.rebuildPrinterModel() # Calls to rebuild the printer model
 
         # Object setup
         model = vtk.vtkOBJImporter()       # Source object to read .stl files
@@ -60,13 +63,19 @@ class MainWindow(QMainWindow):
         model.SetRenderWindow(self.vtkWidget.GetRenderWindow()) # Setting the renderer for the 'model' object to be rendered in
         model.Update() # Updates the model object and converts the stl to vtk format
 
+        # Prepare rendering and interaction for printer model
         self.renderer = model.GetRenderer()                                # Gets the renderer for the model for later use
         self.vtkWidget.GetRenderWindow().AddRenderer(self.renderer)        # Adds the self.renderer to the QVTKRenderWindowInteractor's VTK render window to be displayed in PyQt
         self.interactor = self.vtkWidget.GetRenderWindow().GetInteractor() # Gets the QVTKRenderWindowInteractor's interactor for later use
+        self.customStyle = CustomInteractorStyle()
+        self.interactor.SetInteractorStyle(self.customStyle)
 
         # Adjust camera and lighting
-        self.renderer.SetBackground(0.5, 0.5, 0.5) # A light gray background
-        self.interactor.Initialize() # Initalises the interactor to prepare it for interaction
+        self.camera = self.renderer.GetActiveCamera() # Get camera object
+        self.camera.SetClippingRange(1, 10000)        # Set large clipping distance
+        self.resetCameraView()                        # Reset camera view
+        self.renderer.SetBackground(0.5, 0.5, 0.5)    # A light gray background
+        self.interactor.Initialize()                  # Initalises the interactor to prepare it for interaction
 
         # Arranges and displays widgets within the main window
         self.frame.setLayout(self.vl)     # Sets self.vl QVBoxLayout instance to be displayed inside self.frame, arranged vertically
@@ -76,39 +85,49 @@ class MainWindow(QMainWindow):
         self.actors = self.renderer.GetActors()     # Gets a list of all the actors that are a part of the scene managed by this renderer
         self.itemRanges = self.generateItemRanges() # Retrieves item ranges from the config and makes them into an array
 
+        # Preparing to generate actor list
         self.actors.InitTraversal()                     # Sets up the collection of actors to be iterated through
         self.actorCollection = vtk.vtkActorCollection() # Creates actor collection object
 
+        # Generating actor collection object for future reference
         for item in range(self.actors.GetNumberOfItems()): # Cycles through the number of items (number of nets in the object file)
             self.actor = self.actors.GetNextActor()        # Sets self.actor to the current actor in the list
             self.actorCollection.AddItem(self.actor)       # Adds each actor in turn to the actor collection list
 
-        XPos = int(self.config["DEFAULT"]["XPosition"])
-        YPos = int(self.config["DEFAULT"]["YPosition"])
-        ZPos = int(self.config["DEFAULT"]["ZPosition"])
-        position = [XPos, YPos, ZPos]
-        self.updatePosition(position)
+        # Setting initial printer position
+        XPos = int(self.config["DEFAULT"]["XPosition"]) # Get initial X position
+        YPos = int(self.config["DEFAULT"]["YPosition"]) # Get initial y position
+        ZPos = int(self.config["DEFAULT"]["ZPosition"]) # Get initial z position
+        position = [XPos, YPos, ZPos]        # Create position coordinate list
+        self.updatePrinterPosition(position) # Update printer position with coordinate list
 
-    def updatePosition(self, position):
-        for direction, item in enumerate(self.itemRanges):
-            print("Direction " + str(direction) + " " + str(item))
-            for itemRange in item:
-                print("Ranges " + str(itemRange))
-                for i in range(itemRange[0], itemRange[1]):
-                    self.actor = self.actorCollection.GetItemAsObject(i)
-                    transform = vtk.vtkTransform()  # Create a vtkTransform object
-                    if direction == 0: # Extruder
-                        transform.Translate(position[0], 0, 0)
-                    if direction == 1: # Bed
-                        transform.Translate(0, position[1], 0)
-                    if direction == 2: # Gantry
-                        transform.Translate(0, 0, position[2])
+    # Method to reset camera position and focus
+    def resetCameraView(self):
+        self.camera.SetPosition(400, -1200, 400) # Set camera position
+        self.camera.SetFocalPoint(170, -200, 200)   # Set focal point
+        self.camera.SetViewUp(0, 0, 1)           # Set the up direction for the camera
+        self.renderer.GetRenderWindow().Render()  # Updates renderer
 
-                    self.actor.SetUserTransform(transform)
+    # Method to update position with position x, y, z list
+    def updatePrinterPosition(self, position):
+        for direction, item in enumerate(self.itemRanges): # Loops for each value in self.itemRanges (3 for items x, y, and z)
+            for itemRange in item:                         # Loops for each range in item
+                for i in range(itemRange[0], itemRange[1]+1):            # Loops for each value inbetweem the selected numbers
+                    self.actor = self.actorCollection.GetItemAsObject(i) # Gets the actor object for each value
+                    transform = vtk.vtkTransform()                       # Create a vtkTransform object for translation
+                    match direction:                                     # Checks for each case of direction
+                        case 0:                                              # Extruder movement ± X and ± Z
+                            transform.Translate(position[0], 0, position[2]) # Translates in the X and Z direction
+                        case 1:                                              # Bed movement ± Y
+                            transform.Translate(0, position[1], 0)           # Translates in the Y direction
+                        case 2:                                              # Gantry movement ± Z
+                            transform.Translate(0, 0, position[2])           # Translates in the Z direction
 
-        self.renderer.GetRenderWindow().Render()
+                    # Updating vtk
+                    self.actor.SetUserTransform(transform) # Update actor with transform changes
+        self.renderer.GetRenderWindow().Render()           # Updates renderer
 
-
+    # Scans model directory for file names
     def getFileNames(self):
         # Import and get printer model, .obj, and .mtl file names in specified folder
         dirList = os.listdir(self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
@@ -144,17 +163,55 @@ class MainWindow(QMainWindow):
         self.dockWidgetContents = QWidget()   # Creates a new empty widget
         self.dockWidgetLayout = QVBoxLayout() # Creates a new Vertical Box Layout instance
 
-        # Add buttons to the layout
-        self.rotateButton = QPushButton("Rotate Sphere")        # Adds rotate button
-        self.dockWidgetLayout.addWidget(self.rotateButton)      # Adds button to widget
-        self.changeColorButton = QPushButton("Change Color")    # Adds change colour button
-        self.dockWidgetLayout.addWidget(self.changeColorButton) # Adds button to widget
+        # Adds home view button to the layout
+        self.resetView = QPushButton("Home View")            # Adds rotate button
+        self.dockWidgetLayout.addWidget(self.resetView)      # Adds button to widget
+        self.resetView.clicked.connect(self.resetCameraView) # When pressed resets camera view
+
+        # Adds slider for X
+        self.xSlider = QSlider(Qt.Horizontal, self)
+        self.xSlider.setMinimum(-42)
+        self.xSlider.setMaximum(210)
+        self.xSlider.setValue(0)
+        self.xSlider.setTickInterval(1)
+        self.dockWidgetLayout.addWidget(self.xSlider)
+
+        # Adds slider for Y
+        self.ySlider = QSlider(Qt.Horizontal, self)
+        self.ySlider.setMinimum(-76)
+        self.ySlider.setMaximum(140)
+        self.ySlider.setValue(0)
+        self.ySlider.setTickInterval(1)
+        self.dockWidgetLayout.addWidget(self.ySlider)
+
+        # Adds slider for Z
+        self.zSlider = QSlider(Qt.Horizontal, self)
+        self.zSlider.setMinimum(-214)
+        self.zSlider.setMaximum(12)
+        self.zSlider.setValue(0)
+        self.zSlider.setTickInterval(1)
+        self.dockWidgetLayout.addWidget(self.zSlider)
+
+        self.setChange = QPushButton("Set Change")
+        self.dockWidgetLayout.addWidget(self.setChange)
+        self.setChange.clicked.connect(self.setChangePosition)
+        # Adds move extruder button
 
         self.dockWidgetContents.setLayout(self.dockWidgetLayout)   # Set the layout to the widget
         self.dockWidget.setWidget(self.dockWidgetContents)         # Add the widget to the dock widget
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dockWidget) # Add the dock widget to the main window
 
-    # Method to use multithreading to run though and process the 3D printer model file
+    def setChangePosition(self):
+        XPos = self.xSlider.value()
+        YPos = self.ySlider.value()
+        ZPos = self.zSlider.value()
+        position = [XPos, YPos, ZPos]
+        self.updatePrinterPosition(position)
+        print("X = " + str(XPos))
+        print("Y = " + str(YPos))
+        print("Z = " + str(ZPos))
+
+    # Method to use multithreading to run and process the 3D printer model file
     def rebuildPrinterModel(self):
         # Open and process input model data and opening output file
         filePath = self.config["PRINTER_MODEL"]["3DPrinterModelDirectory"] + "\\" + self.objFile # Generates the relative file address
@@ -225,7 +282,54 @@ class MainWindow(QMainWindow):
                 for j in range(len(currentLine) - 1): # Loops for the number of sections in the current line minus one
                     output += currentLine[j] + " "    # Builds the current line
                 output += currentLine[-1]             # Adds the end of the current line separately to remove space at the end of the line
-            outputLines[chunkId].append(output)    # Appends the output line to the outputBuffers array
+            outputLines[chunkId].append(output)       # Appends the output line to the outputBuffers array
+
+class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
+
+    def __init__(self, parent=None):
+        self.AddObserver("MiddleButtonPressEvent", self.middleButtonPressEvent)
+        self.AddObserver("MiddleButtonReleaseEvent", self.middleButtonReleaseEvent)
+        self.AddObserver("MouseWheelForwardEvent", self.mouseWheelForwardEvent)
+        self.AddObserver("MouseWheelBackwardEvent", self.mouseWheelBackwardEvent)
+        self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)
+        self.isPanning = False
+        self.isRotating = False
+
+    def middleButtonPressEvent(self, obj, event):
+        self.isPanning = True
+        self.OnMiddleButtonDown()
+        return
+
+    def middleButtonReleaseEvent(self, obj, event):
+        self.isPanning = False
+        self.isRotating = False
+        self.OnMiddleButtonUp()
+        return
+
+    def mouseMoveEvent(self, obj, event):
+        if self.isPanning:
+            self.OnMouseMove()
+        elif self.isRotating:
+            self.OnMouseMove()
+        return
+
+    def mouseWheelForwardEvent(self, obj, event):
+        self.OnMouseWheelForward()
+        return
+
+    def mouseWheelBackwardEvent(self, obj, event):
+        self.OnMouseWheelBackward()
+        return
+
+    def OnKeyDown(self):
+        key = self.GetInteractor().GetKeySym()
+        if key == 'Shift_L' or key == 'Shift_R':
+            self.isRotating = True
+        return vtk.vtkInteractorStyleTrackballCamera.OnKeyDown(self)
+
+    def OnKeyUp(self):
+        self.isRotating = False
+        return vtk.vtkInteractorStyleTrackballCamera.OnKeyUp(self)
 
 # Main function of the script
 def main():
