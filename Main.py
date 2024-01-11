@@ -20,7 +20,8 @@ class MainWindow(QMainWindow):
 
         # Window setup
         self.setWindowTitle("3D Printer Visualiser") # Set window title
-        self.setGeometry(100, 100, 800, 600)         # Set initial window position & size
+        resolution = self.config["DEFAULT"]["WindowResolution"].split("x")
+        self.setGeometry(100, 100, int(resolution[0]), int(resolution[1]))         # Set initial window position & size
 
         # vtk and menu setup
         self.setupVtkWindow() # Runs setup function for the renderer
@@ -103,9 +104,9 @@ class MainWindow(QMainWindow):
 
     # Method to reset camera position and focus
     def resetCameraView(self):
-        self.camera.SetPosition(400, -1200, 400) # Set camera position
-        self.camera.SetFocalPoint(170, -200, 200)   # Set focal point
-        self.camera.SetViewUp(0, 0, 1)           # Set the up direction for the camera
+        self.camera.SetPosition(500, -1400, 500)  # Set camera position
+        self.camera.SetFocalPoint(170, -200, 200) # Set focal point
+        self.camera.SetViewUp(0, 0, 1)            # Set the up direction for the camera
         self.renderer.GetRenderWindow().Render()  # Updates renderer
 
     # Method to update position with position x, y, z list
@@ -168,27 +169,33 @@ class MainWindow(QMainWindow):
         self.dockWidgetLayout.addWidget(self.resetView)      # Adds button to widget
         self.resetView.clicked.connect(self.resetCameraView) # When pressed resets camera view
 
-        # Adds slider for X
+        # Adds slider for X Extruder
+        # 0   - 255 Physical
+        # -42 - 213 Simulation
         self.xSlider = QSlider(Qt.Horizontal, self)
         self.xSlider.setMinimum(-42)
-        self.xSlider.setMaximum(210)
-        self.xSlider.setValue(0)
+        self.xSlider.setMaximum(213)
+        self.xSlider.setValue(int(self.config['DEFAULT']['XPosition']))
         self.xSlider.setTickInterval(1)
         self.dockWidgetLayout.addWidget(self.xSlider)
 
         # Adds slider for Y
+        # 212 - 0   Physical
+        # -77 - 136 Simulation
         self.ySlider = QSlider(Qt.Horizontal, self)
-        self.ySlider.setMinimum(-76)
-        self.ySlider.setMaximum(140)
-        self.ySlider.setValue(0)
+        self.ySlider.setMinimum(-77)
+        self.ySlider.setMaximum(136)
+        self.ySlider.setValue(int(self.config['DEFAULT']['YPosition']))
         self.ySlider.setTickInterval(1)
         self.dockWidgetLayout.addWidget(self.ySlider)
 
         # Adds slider for Z
+        # 0   - 210 Physical
+        # -209 - 2   Simulation
         self.zSlider = QSlider(Qt.Horizontal, self)
-        self.zSlider.setMinimum(-214)
-        self.zSlider.setMaximum(12)
-        self.zSlider.setValue(0)
+        self.zSlider.setMinimum(-209)
+        self.zSlider.setMaximum(2)
+        self.zSlider.setValue(int(self.config['DEFAULT']['ZPosition']))
         self.zSlider.setTickInterval(1)
         self.dockWidgetLayout.addWidget(self.zSlider)
 
@@ -296,44 +303,48 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.isRotating = False
 
     def middleButtonPressEvent(self, obj, event):
-        self.isPanning = True
-        self.OnMiddleButtonDown()
+        if self.GetInteractor().GetShiftKey():
+            self.isRotating = True
+            self.StartRotate()
+        else:
+            self.isPanning = True
+            self.StartPan()
         return
 
     def middleButtonReleaseEvent(self, obj, event):
-        self.isPanning = False
-        self.isRotating = False
-        self.OnMiddleButtonUp()
+        if self.isPanning:
+            self.isPanning = False
+            self.EndPan()
+        if self.isRotating:
+            self.isRotating = False
+            self.EndRotate()
         return
 
     def mouseMoveEvent(self, obj, event):
         if self.isPanning:
-            self.OnMouseMove()
+            self.Pan()
         elif self.isRotating:
-            self.OnMouseMove()
+            mainWin.camera.SetViewUp(0, 0, 1)  # Set the up direction for the camera
+
+            self.Rotate()
         return
 
     def mouseWheelForwardEvent(self, obj, event):
-        self.OnMouseWheelForward()
+        self.StartZoom()
+        self.Zoom()
+        self.EndZoom()
         return
 
     def mouseWheelBackwardEvent(self, obj, event):
-        self.OnMouseWheelBackward()
+        self.StartZoom()
+        self.Zoom()
+        self.EndZoom()
         return
-
-    def OnKeyDown(self):
-        key = self.GetInteractor().GetKeySym()
-        if key == 'Shift_L' or key == 'Shift_R':
-            self.isRotating = True
-        return vtk.vtkInteractorStyleTrackballCamera.OnKeyDown(self)
-
-    def OnKeyUp(self):
-        self.isRotating = False
-        return vtk.vtkInteractorStyleTrackballCamera.OnKeyUp(self)
 
 # Main function of the script
 def main():
     app = QApplication(sys.argv) # Creates a QApplication instance to handle events and widgets
+    global mainWin
     mainWin = MainWindow()       # Creates a MainWindow instance stored but not displayed
     mainWin.show()               # Makes the MainWindow visible
     sys.exit(app.exec_())        # Starts the applications main loop to respond to inputs and exits the application loop ends (closing the window)
