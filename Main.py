@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
                 for i in range(itemRange[0], itemRange[1]+1):            # Loops for each value inbetweem the selected numbers
                     self.actor = self.actorCollection.GetItemAsObject(i) # Gets the actor object for each value
                     transform = vtk.vtkTransform()                       # Create a vtkTransform object for translation
-                    match direction:                                     # Checks for each case of direction
+                    match direction:                                         # Checks for each case of direction
                         case 0:                                              # Extruder movement ± X and ± Z
                             transform.Translate(position[0], 0, position[2]) # Translates in the X and Z direction
                         case 1:                                              # Bed movement ± Y
@@ -141,9 +141,9 @@ class MainWindow(QMainWindow):
         dirList = os.listdir(config["PRINTER_MODEL"]["3DPrinterModelDirectory"]) # Lists the files in the selected folder
         for i in range(len(dirList)):            # Repeats for each file in folder (should only be 2)
             extension = dirList[i].split(".")[1] # Sets the extension to the file extension of the current file
-            if (extension == "mtl"):             # Checks if current file is a .mtl file
+            if extension == "mtl":               # Checks if current file is a .mtl file
                 self.mtlFile = dirList[i]        # If it is a .mtl file it writes the current file name to mtlFile
-            elif (extension == "obj"):           # Checks if current file is an .obj file
+            elif extension == "obj":             # Checks if current file is an .obj file
                 self.objFile = dirList[i]        # If it is a .obj file it writes the current file name to objFile
 
     # Setup menu bar
@@ -162,6 +162,7 @@ class MainWindow(QMainWindow):
         # Adds initial printer model setup to options menu
         self.printerModelSetup = optionMenu.addAction("Run Printer Model Setup")
         self.printerModelSetup.triggered.connect(self.toggleDockVisibility)
+
     # Method to toggle the dock visibility
     def toggleDockVisibility(self):
         # Toggle the visibility of the dock widget
@@ -192,17 +193,20 @@ class MainWindow(QMainWindow):
 
         for i in range(3):
             # Setting variables
+            label = QLabel("", self)
+            slider = QSlider(Qt.Horizontal, self)
+
             realMin = self.movementRanges[i][0][0]
             realMax = self.movementRanges[i][0][1]
             simMin = self.movementRanges[i][1][0]
             simMax = self.movementRanges[i][1][1]
-            defaultValue = self.defaultPosition[i]
+            defaultVal = self.defaultPosition[i]
 
             # Setup slider widget
-            self.sliders.append([QLabel("", self), QSlider(Qt.Horizontal, self)])
-            self.sliders[i][1].setMinimum(simMin)
-            self.sliders[i][1].setMaximum(simMax)
-            self.sliders[i][1].setValue(defaultValue)
+            self.sliders.append([label, slider, realMin, realMax, simMin, simMax, defaultVal])
+            self.sliders[i][1].setMinimum(realMin)
+            self.sliders[i][1].setMaximum(realMax)
+            self.sliders[i][1].setValue(defaultVal)
             self.sliders[i][1].setTickInterval(1)
             self.sliders[i][1].valueChanged.connect(self.updateLabel)
 
@@ -233,11 +237,21 @@ class MainWindow(QMainWindow):
         self.movementRanges.append([[int(ySliderPhysical[0]), int(ySliderPhysical[1])], [int(ySliderSimulate[0]), int(ySliderSimulate[1])]])
         self.movementRanges.append([[int(zSliderPhysical[0]), int(zSliderPhysical[1])], [int(zSliderSimulate[0]), int(zSliderSimulate[1])]])
 
+    def convert(self, i, value):
+        #label, slider, realMin, realMax, simMin, simMax, defaultVal
+        realSpan = self.sliders[i][3] - self.sliders[i][2]
+        simSpan = self.sliders[i][5] - self.sliders[i][4]
+
+        valueScaled = float(value - self.sliders[i][2]) / float(realSpan)
+
+        return self.sliders[i][4] + (valueScaled * simSpan)
+
     def updateLabel(self):
         position = []
         for i in range(3):
-            position.append(self.sliders[i][1].value())
-            self.sliders[i][0].setText(f"Value: {position[i]}")
+            currentPosition = self.sliders[i][1].value()
+            position.append(self.convert(i, currentPosition))
+            self.sliders[i][0].setText(f"Value: {currentPosition}")
 
         self.updatePrinterPosition(position)
 
