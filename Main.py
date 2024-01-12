@@ -4,10 +4,11 @@ import sys
 from configobj import ConfigObj
 import time
 import threading
+from functools import partial
 import vtk # Visualisation toolkit
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDockWidget, QVBoxLayout, QPushButton, QWidget, QSlider
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDockWidget, QVBoxLayout, QPushButton, QWidget, QSlider, QLabel
 from PyQt5.QtCore import Qt  # This is to use Qt.LeftDockWidgetArea
 
 # Definition of the main window class
@@ -19,7 +20,7 @@ class MainWindow(QMainWindow):
         # Window setup
         self.setWindowTitle("3D Printer Visualiser") # Set window title
         resolution = config["SETUP"]["WindowResolution"].split("x")        # Get initial resolution from config file
-        self.setGeometry(100, 100, int(resolution[0]), int(resolution[1])) # Set initial window position & size
+        self.setGeometry(20, 20, int(resolution[0]), int(resolution[1])) # Set initial window position & size
 
         # vtk and menu setup
         self.setupVtkWindow() # Runs setup function for the renderer
@@ -85,8 +86,9 @@ class MainWindow(QMainWindow):
         XPos = int(config["DEFAULT"]["XPosition"]) # Get initial X position
         YPos = int(config["DEFAULT"]["YPosition"]) # Get initial y position
         ZPos = int(config["DEFAULT"]["ZPosition"]) # Get initial z position
-        position = [XPos, YPos, ZPos]        # Create position coordinate list
-        self.updatePrinterPosition(position) # Update printer position with coordinate list
+        self.defaultPosition = [XPos, YPos, ZPos]        # Create position coordinate list
+        self.updatePrinterPosition(self.defaultPosition) # Update printer position with coordinate list
+        print(self.defaultPosition)
 
     # Method to reset camera position and focus
     def resetCameraView(self):
@@ -183,44 +185,61 @@ class MainWindow(QMainWindow):
         self.dockWidgetLayout.addWidget(self.resetView)      # Adds button to widget
         self.resetView.clicked.connect(self.resetCameraView) # When pressed resets camera view
 
-        # Adds slider for X Extruder
-        # 0   - 255 Physical
-        # -42 - 213 Simulation
-        self.xSlider = QSlider(Qt.Horizontal, self)
-        self.xSlider.setMinimum(-42)
-        self.xSlider.setMaximum(213)
-        self.xSlider.setValue(int(config['DEFAULT']['XPosition']))
-        self.xSlider.setTickInterval(1)
-        self.dockWidgetLayout.addWidget(self.xSlider)
 
-        # Adds slider for Y
-        # 212 - 0   Physical
-        # -77 - 136 Simulation
-        self.ySlider = QSlider(Qt.Horizontal, self)
-        self.ySlider.setMinimum(-77)
-        self.ySlider.setMaximum(136)
-        self.ySlider.setValue(int(config['DEFAULT']['YPosition']))
-        self.ySlider.setTickInterval(1)
-        self.dockWidgetLayout.addWidget(self.ySlider)
+        self.sliders = []
+        self.generateMovementRanges()
+        print(self.movementRanges)
 
-        # Adds slider for Z
-        # 0   - 210 Physical
-        # -209 - 2   Simulation
-        self.zSlider = QSlider(Qt.Horizontal, self)
-        self.zSlider.setMinimum(-209)
-        self.zSlider.setMaximum(2)
-        self.zSlider.setValue(int(config['DEFAULT']['ZPosition']))
-        self.zSlider.setTickInterval(1)
-        self.dockWidgetLayout.addWidget(self.zSlider)
+        for i in range(3):
+            # Setting variables
+            realMin = self.movementRanges[i][0][0]
+            realMax = self.movementRanges[i][0][1]
+            simMin = self.movementRanges[i][1][0]
+            simMax = self.movementRanges[i][1][1]
+            defaultValue = self.defaultPosition[i]
 
-        self.setChange = QPushButton("Set Change")
-        self.dockWidgetLayout.addWidget(self.setChange)
-        self.setChange.clicked.connect(self.setChangePosition)
-        # Adds move extruder button
+            # Setup slider widget
+            self.sliders.append([QLabel("", self), QSlider(Qt.Horizontal, self)])
+            self.sliders[i][1].setMinimum(simMin)
+            self.sliders[i][1].setMaximum(simMax)
+            self.sliders[i][1].setValue(defaultValue)
+            self.sliders[i][1].setTickInterval(1)
+            self.sliders[i][1].valueChanged.connect(self.updateLabel)
+
+            # Label for the slider
+            self.sliders[i][0].setAlignment(Qt.AlignCenter)  # Center align the label text
+
+            # Add widgets to layout
+            self.dockWidgetLayout.addWidget(self.sliders[i][0])
+            self.dockWidgetLayout.addWidget(self.sliders[i][1])
+
+        self.updateLabel()
 
         self.dockWidgetContents.setLayout(self.dockWidgetLayout)   # Set the layout to the widget
         self.dockWidget.setWidget(self.dockWidgetContents)         # Add the widget to the dock widget
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dockWidget) # Add the dock widget to the main window
+
+    def generateMovementRanges(self):
+        xSliderPhysical = config["PRINTER_MODEL"]["XSliderPhysical"].split(" ")
+        ySliderPhysical = config["PRINTER_MODEL"]["YSliderPhysical"].split(" ")
+        zSliderPhysical = config["PRINTER_MODEL"]["ZSliderPhysical"].split(" ")
+
+        xSliderSimulate = config["PRINTER_MODEL"]["XSliderSimulate"].split(" ")
+        ySliderSimulate = config["PRINTER_MODEL"]["YSliderSimulate"].split(" ")
+        zSliderSimulate = config["PRINTER_MODEL"]["ZSliderSimulate"].split(" ")
+
+        self.movementRanges = []
+        self.movementRanges.append([[int(xSliderPhysical[0]), int(xSliderPhysical[1])], [int(xSliderSimulate[0]), int(xSliderSimulate[1])]])
+        self.movementRanges.append([[int(ySliderPhysical[0]), int(ySliderPhysical[1])], [int(ySliderSimulate[0]), int(ySliderSimulate[1])]])
+        self.movementRanges.append([[int(zSliderPhysical[0]), int(zSliderPhysical[1])], [int(zSliderSimulate[0]), int(zSliderSimulate[1])]])
+
+    def updateLabel(self):
+        position = []
+        for i in range(3):
+            position.append(self.sliders[i][1].value())
+            self.sliders[i][0].setText(f"Value: {position[i]}")
+
+        self.updatePrinterPosition(position)
 
     def setChangePosition(self):
         XPos = self.xSlider.value()
@@ -280,12 +299,12 @@ class MainWindow(QMainWindow):
     # Generates a structured array of items in the object file
     def generateItemRanges(self):
         # Retrieves Y, Z, X item ranges from the settings.ini file
-        XItems = config["PRINTER_MODEL"]["XItems"] # Model items that make up the X axis
-        YItems = config["PRINTER_MODEL"]["YItems"] # Model items that make up the Y axis
-        ZItems = config["PRINTER_MODEL"]["ZItems"] # Model items that make up the Z axis
+        xItems = config["PRINTER_MODEL"]["XItems"] # Model items that make up the X axis
+        yItems = config["PRINTER_MODEL"]["YItems"] # Model items that make up the Y axis
+        zItems = config["PRINTER_MODEL"]["ZItems"] # Model items that make up the Z axis
 
         # Makes the structured array using item ranges
-        itemRanges = [XItems, YItems, ZItems] # Puts item range strings into an array
+        itemRanges = [xItems, yItems, zItems] # Puts item range strings into an array
         output = []                           # Initialises output list
         for ranges in itemRanges:             # Loops for each value in ranges
             subOutput = []                    # Initialises sub output list
