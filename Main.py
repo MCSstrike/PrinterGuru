@@ -9,17 +9,17 @@ import vtk # Visualisation toolkit
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDockWidget, QVBoxLayout, QPushButton, QWidget, QSlider, QLabel
-from PyQt5.QtCore import Qt  # This is to use Qt.LeftDockWidgetArea
+from PyQt5.QtCore import Qt, pyqtSignal  # This is to use Qt.LeftDockWidgetArea
 
 # Definition of the main window class
 class MainWindow(QMainWindow):
-    # Initalises this main window object
+    # Initalises the main window object
     def __init__(self):
         super().__init__()
 
         # Window setup
         self.setWindowTitle("3D Printer Visualiser") # Set window title
-        resolution = config["SETUP"]["WindowResolution"].split("x")        # Get initial resolution from config file
+        resolution = config["SETUP"]["WindowResolution"].split("x")      # Get initial resolution from config file
         self.setGeometry(20, 20, int(resolution[0]), int(resolution[1])) # Set initial window position & size
 
         # vtk and menu setup
@@ -55,8 +55,8 @@ class MainWindow(QMainWindow):
         self.renderer = model.GetRenderer()                                # Gets the renderer for the model for later use
         self.vtkWidget.GetRenderWindow().AddRenderer(self.renderer)        # Adds the self.renderer to the QVTKRenderWindowInteractor's VTK render window to be displayed in PyQt
         self.interactor = self.vtkWidget.GetRenderWindow().GetInteractor() # Gets the QVTKRenderWindowInteractor's interactor for later use
-        self.customStyle = CustomInteractorStyle()
-        self.interactor.SetInteractorStyle(self.customStyle)
+        self.customStyle = CustomInteractorStyle()           # Sets custom interactor variable
+        self.interactor.SetInteractorStyle(self.customStyle) # Sets custom interactor style
 
         # Adjust camera and lighting
         self.camera = self.renderer.GetActiveCamera() # Get camera object
@@ -88,7 +88,6 @@ class MainWindow(QMainWindow):
         ZPos = int(config["DEFAULT"]["ZPosition"]) # Get initial z position
         self.defaultPosition = [XPos, YPos, ZPos]        # Create position coordinate list
         self.updatePrinterPosition(self.defaultPosition) # Update printer position with coordinate list
-        print(self.defaultPosition)
 
     # Method to reset camera position and focus
     def resetCameraView(self):
@@ -154,22 +153,20 @@ class MainWindow(QMainWindow):
         optionMenu = menuBar.addMenu("Options") # Adding options menu to menu bar
 
         # Adds dock toggle to view menu
-        self.toggleDockAction = viewMenu.addAction("Toggle Dock")          # Adding toggle item to viewMenu menu
-        self.toggleDockAction.setCheckable(True)                           # Lets this action display a tick box beside itself
-        self.toggleDockAction.setChecked(True)                             # Sets this tick box by default
+        self.toggleDockAction = viewMenu.addAction("Toggle Dock")          # Adding toggle item to view menu
         self.toggleDockAction.triggered.connect(self.toggleDockVisibility) # Runs toggleDockVisibility method each time the action is triggered
 
         # Adds initial printer model setup to options menu
-        self.printerModelSetup = optionMenu.addAction("Run Printer Model Setup")
-        self.printerModelSetup.triggered.connect(self.toggleDockVisibility)
+        self.printerModelSetup = optionMenu.addAction("Run Printer Model Setup") # Adding run printer model setup action to options menu
+        self.printerModelSetup.triggered.connect(self.printerItemsSetup)         # Runs printer items setup
 
     # Method to toggle the dock visibility
     def toggleDockVisibility(self):
         # Toggle the visibility of the dock widget
         self.dockWidget.setVisible(not self.dockWidget.isVisible()) # Toggles the dock visibility
 
-    #def printerItemsSetup(self):
-        #
+    def printerItemsSetup(self):
+        print("Here1") # Have object continuously moving to identify
 
     # Method to add a dock toolbar to the main window
     def addDockToolbar(self):
@@ -186,84 +183,80 @@ class MainWindow(QMainWindow):
         self.dockWidgetLayout.addWidget(self.resetView)      # Adds button to widget
         self.resetView.clicked.connect(self.resetCameraView) # When pressed resets camera view
 
+        # Setup slider variables
+        self.sliders = []             # Initialise sliders array
+        self.generateMovementRanges() # Gets the movement ranges
 
-        self.sliders = []
-        self.generateMovementRanges()
-        print(self.movementRanges)
-
-        for i in range(3):
+        # Runs setup for each slider and slider label
+        for i in range(3): # Loops three times for x, y, z
             # Setting variables
-            label = QLabel("", self)
-            slider = QSlider(Qt.Horizontal, self)
+            label = QLabel("", self)              # Make Qt label object
+            slider = QSlider(Qt.Horizontal, self) # Make Qt slider object
 
-            realMin = self.movementRanges[i][0][0]
-            realMax = self.movementRanges[i][0][1]
-            simMin = self.movementRanges[i][1][0]
-            simMax = self.movementRanges[i][1][1]
-            defaultVal = self.defaultPosition[i]
+            # Retrieve slider variables
+            realMin = self.movementRanges[i][0][0] # Gets real range minimum value
+            realMax = self.movementRanges[i][0][1] # Gets real range maximum value
+            simMin  = self.movementRanges[i][1][0] # Gets simulated range minimum value
+            simMax  = self.movementRanges[i][1][1] # Gets simulated range maximum value
+            defaultVal = self.defaultPosition[i]   # Gets starting position value
 
             # Setup slider widget
-            self.sliders.append([label, slider, realMin, realMax, simMin, simMax, defaultVal])
-            self.sliders[i][1].setMinimum(realMin)
-            self.sliders[i][1].setMaximum(realMax)
-            self.sliders[i][1].setValue(defaultVal)
-            self.sliders[i][1].setTickInterval(1)
-            self.sliders[i][1].valueChanged.connect(self.updateLabel)
-
-            # Label for the slider
-            self.sliders[i][0].setAlignment(Qt.AlignCenter)  # Center align the label text
+            self.sliders.append([label, slider, realMin, realMax, simMin, simMax, defaultVal]) # Adds related objects and variables to sliders list
+            self.sliders[i][0].setAlignment(Qt.AlignCenter) # Center align the label text
+            self.sliders[i][1].setMinimum(realMin)  # Sets slider minimum value
+            self.sliders[i][1].setMaximum(realMax)  # Sets slider maximum value
+            self.sliders[i][1].setValue(defaultVal) # Sets slider starting value
+            self.sliders[i][1].setTickInterval(1)   # Sets slider tick interval
+            self.sliders[i][1].valueChanged.connect(self.updateLabel) # Sets updateLabel method to run on change
 
             # Add widgets to layout
-            self.dockWidgetLayout.addWidget(self.sliders[i][0])
-            self.dockWidgetLayout.addWidget(self.sliders[i][1])
+            self.dockWidgetLayout.addWidget(self.sliders[i][0]) # Adds label to dock widget
+            self.dockWidgetLayout.addWidget(self.sliders[i][1]) # Adds slider to dock widget
 
-        self.updateLabel()
+        self.updateLabel() # Updates slider labels
 
+        # Sets dock widgets layout
         self.dockWidgetContents.setLayout(self.dockWidgetLayout)   # Set the layout to the widget
         self.dockWidget.setWidget(self.dockWidgetContents)         # Add the widget to the dock widget
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dockWidget) # Add the dock widget to the main window
 
+    # Generates movement ranges list
     def generateMovementRanges(self):
-        xSliderPhysical = config["PRINTER_MODEL"]["XSliderPhysical"].split(" ")
-        ySliderPhysical = config["PRINTER_MODEL"]["YSliderPhysical"].split(" ")
-        zSliderPhysical = config["PRINTER_MODEL"]["ZSliderPhysical"].split(" ")
+        # Real ranges
+        xSliderPhysical = config["PRINTER_MODEL"]["XSliderPhysical"].split(" ") # Get x real slider range
+        ySliderPhysical = config["PRINTER_MODEL"]["YSliderPhysical"].split(" ") # Get y real slider range
+        zSliderPhysical = config["PRINTER_MODEL"]["ZSliderPhysical"].split(" ") # Get z real slider range
 
-        xSliderSimulate = config["PRINTER_MODEL"]["XSliderSimulate"].split(" ")
-        ySliderSimulate = config["PRINTER_MODEL"]["YSliderSimulate"].split(" ")
-        zSliderSimulate = config["PRINTER_MODEL"]["ZSliderSimulate"].split(" ")
+        # Simulated ranges
+        xSliderSimulate = config["PRINTER_MODEL"]["XSliderSimulate"].split(" ") # Get x simulated slider range
+        ySliderSimulate = config["PRINTER_MODEL"]["YSliderSimulate"].split(" ") # Get y simulated slider range
+        zSliderSimulate = config["PRINTER_MODEL"]["ZSliderSimulate"].split(" ") # Get z simulated slider range
 
-        self.movementRanges = []
-        self.movementRanges.append([[int(xSliderPhysical[0]), int(xSliderPhysical[1])], [int(xSliderSimulate[0]), int(xSliderSimulate[1])]])
-        self.movementRanges.append([[int(ySliderPhysical[0]), int(ySliderPhysical[1])], [int(ySliderSimulate[0]), int(ySliderSimulate[1])]])
-        self.movementRanges.append([[int(zSliderPhysical[0]), int(zSliderPhysical[1])], [int(zSliderSimulate[0]), int(zSliderSimulate[1])]])
+        # Make movement ranges variable
+        self.movementRanges = [] # Initialise movement ranges variable
+        self.movementRanges.append([[int(xSliderPhysical[0]), int(xSliderPhysical[1])], [int(xSliderSimulate[0]), int(xSliderSimulate[1])]]) # Append x ranges
+        self.movementRanges.append([[int(ySliderPhysical[0]), int(ySliderPhysical[1])], [int(ySliderSimulate[0]), int(ySliderSimulate[1])]]) # Append y ranges
+        self.movementRanges.append([[int(zSliderPhysical[0]), int(zSliderPhysical[1])], [int(zSliderSimulate[0]), int(zSliderSimulate[1])]]) # Append z ranges
 
+    # Convert method to change real values to the simulated values found in the 3D model
     def convert(self, i, value):
-        #label, slider, realMin, realMax, simMin, simMax, defaultVal
-        realSpan = self.sliders[i][3] - self.sliders[i][2]
-        simSpan = self.sliders[i][5] - self.sliders[i][4]
+        # Calculate spans
+        realSpan = self.sliders[i][3] - self.sliders[i][2] # Difference in real range, realSpan
+        simSpan = self.sliders[i][5] - self.sliders[i][4]  # Difference in simulated range, simSpan
 
-        valueScaled = float(value - self.sliders[i][2]) / float(realSpan)
+        # Calculate output value
+        valueScaled = float(value - self.sliders[i][2]) / float(realSpan) # Value scaled
+        return self.sliders[i][4] + (valueScaled * simSpan) # Output converted value
 
-        return self.sliders[i][4] + (valueScaled * simSpan)
-
+    # Updates the label of the x, y, and z sliders
     def updateLabel(self):
-        position = []
-        for i in range(3):
-            currentPosition = self.sliders[i][1].value()
-            position.append(self.convert(i, currentPosition))
-            self.sliders[i][0].setText(f"Value: {currentPosition}")
+        position = []      # Initalises the position array
+        for i in range(3): # Loops three times for x, y, z
+            currentPosition = self.sliders[i][1].value()            # Get current position of slider
+            position.append(self.convert(i, currentPosition))       # Converts current position to match simulated ranges and adds to position list
+            self.sliders[i][0].setText(f"Value: {currentPosition}") # Sets slider label to current position
 
-        self.updatePrinterPosition(position)
-
-    def setChangePosition(self):
-        XPos = self.xSlider.value()
-        YPos = self.ySlider.value()
-        ZPos = self.zSlider.value()
-        position = [XPos, YPos, ZPos]
-        self.updatePrinterPosition(position)
-        print("X = " + str(XPos))
-        print("Y = " + str(YPos))
-        print("Z = " + str(ZPos))
+        self.updatePrinterPosition(position) # Updates printer position with generated position array
 
     # Rebuilds the printer object file to be compatible with vtk
     def RebuildPrinterModel(self):
@@ -271,10 +264,8 @@ class MainWindow(QMainWindow):
         self.rebuildObjectFile(filePath, "processed.obj") # Runs the 3D printer model file through the object processing method
 
         # Updating settings file
-        config['PRINTER_MODEL']['rebuildPrinterModel'] = '0' # Sets the rebuildPrinterModel to 0 now that it has finished running
+        config["PRINTER_MODEL"]["rebuildPrinterModel"] = "0" # Sets the rebuildPrinterModel to 0 now that it has finished running
         config.write()                                       # Writes the config save to the settings.ini file
-
-        # Method to use multithreading to run and process Object files
 
     # Opens originalFile, processes it to work with vtk and outputs to processedFile
     def rebuildObjectFile(self, originalFile, processedFile):
@@ -285,7 +276,7 @@ class MainWindow(QMainWindow):
         length = len(content)      # Calculates the number of lines in the variable
 
         # Setting up threading variables
-        numThreads = int(config['SETUP']['CPUThreads']) # Gets the number
+        numThreads = int(config["SETUP"]["CPUThreads"]) # Gets the number
         chunkSize = length // numThreads                # Calculate a chunk size relative to the number of threads being used
         threads = []                                    # Initialises the threads list
         outputLines = [[] for i in range(numThreads)]   # Loops to make a list of empty arrays for each thread used
@@ -344,53 +335,59 @@ class MainWindow(QMainWindow):
                 output += currentLine[-1]             # Adds the end of the current line separately to remove space at the end of the line
             outputLines[chunkId].append(output)       # Appends the output line to the outputBuffers array
 
+# Custom interactor style class
 class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
-
+    # Initalises the custom interactor style object
     def __init__(self, parent=None):
-        self.AddObserver("MiddleButtonPressEvent", self.middleButtonPressEvent)
-        self.AddObserver("MiddleButtonReleaseEvent", self.middleButtonReleaseEvent)
-        self.AddObserver("MouseWheelForwardEvent", self.mouseWheelForwardEvent)
-        self.AddObserver("MouseWheelBackwardEvent", self.mouseWheelBackwardEvent)
-        self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)
-        self.isPanning = False
-        self.isRotating = False
+        self.AddObserver("MiddleButtonPressEvent", self.middleButtonPressEvent)     # Add event listener for middle mouse button pressed
+        self.AddObserver("MiddleButtonReleaseEvent", self.middleButtonReleaseEvent) # Add event listener for middle mouse button released
+        self.AddObserver("MouseWheelForwardEvent", self.mouseWheelForwardEvent)     # Add event listener for mouse scroll forward
+        self.AddObserver("MouseWheelBackwardEvent", self.mouseWheelBackwardEvent)   # Add event listener for mouse scroll backward
+        self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)                     # Add event listener for mouse movement
+        self.isPanning = False  # Set panning to false
+        self.isRotating = False # Set rotating to false
 
+    # Middle mouse button press method
     def middleButtonPressEvent(self, obj, event):
-        if self.GetInteractor().GetShiftKey():
-            self.isRotating = True
-            self.StartRotate()
-        else:
-            self.isPanning = True
-            self.StartPan()
+        if self.GetInteractor().GetShiftKey(): # Check if shift is pressed
+            self.isRotating = True # Sets rotating to true
+            self.StartRotate()     # Starts rotating object
+        else:                      # If shift not pressed
+            self.isPanning = True  # Sets panning to true
+            self.StartPan()        # Starts panning object
         return
 
+    # Middle mouse button release method
     def middleButtonReleaseEvent(self, obj, event):
-        if self.isPanning:
-            self.isPanning = False
-            self.EndPan()
-        if self.isRotating:
-            self.isRotating = False
-            self.EndRotate()
+        if self.isPanning:          # Checks if panning
+            self.isPanning = False  # Sets panning to false
+            self.EndPan()           # End pan
+        if self.isRotating:         # Checks if rotating
+            self.isRotating = False # Sets rotating to false
+            self.EndRotate()        # End rotate
         return
 
+    # Mouse move method
     def mouseMoveEvent(self, obj, event):
-        if self.isPanning:
-            self.Pan()
-        elif self.isRotating:
+        if self.isPanning:             # Checks if panning
+            self.Pan()                 # Pans object
+        elif self.isRotating:          # Checks if rotating
             mainWin.cameraSetViewUp()  # Set the up direction for the camera
-            self.Rotate()
+            self.Rotate()              # Rotates object
         return
 
+    # Mouse wheel forward method
     def mouseWheelForwardEvent(self, obj, event):
-        self.StartZoom()
-        self.Zoom()
-        self.EndZoom()
+        camera = self.GetInteractor().GetRenderWindow().GetRenderers().GetFirstRenderer().GetActiveCamera() # Get active camera from render window
+        camera.Zoom(1.1111)                             # Zoom in
+        self.GetInteractor().GetRenderWindow().Render() # Update renderer
         return
 
+    # Mouse wheel backward method
     def mouseWheelBackwardEvent(self, obj, event):
-        self.StartZoom()
-        self.Zoom()
-        self.EndZoom()
+        camera = self.GetInteractor().GetRenderWindow().GetRenderers().GetFirstRenderer().GetActiveCamera() # Get active camera from render window
+        camera.Zoom(0.9)                                # Zoom out
+        self.GetInteractor().GetRenderWindow().Render() # Update renderer
         return
 
 # Reads and runs setup for the config variable
@@ -405,9 +402,9 @@ def getConfig(configFile): # Runs the config setup for the program
 
     # Lists the config file to the user
     for section in config:    # Loops for each section in the config file
-        print(f'[{section}]') # Prints the section name for each section
+        print(f"[{section}]") # Prints the section name for each section
         for key, value in config[section].items():  # Loops for each value in the section
-            print(f'{key} = {value}')               # Prints the key and value for each value
+            print(f"{key} = {value}")               # Prints the key and value for each value
         print()                                     # This adds empty line for better readability
     time.sleep(int(config["SETUP"]["configDelay"])) # Waits for defined time to let the user read the config
 
