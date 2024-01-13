@@ -56,6 +56,8 @@ As of now, the application:
 - Adds menu bar to toggle the visibility of the dock widget.
 - Adds buttons within the dock widget for basic control over the vtk renderer
 
+- Current issue where you have to left or right click on the vtk renderer window before it will respond to pan or rotate controls
+
 ## Next Steps
 Future development will focus on:
 - Enhancing the 3D visualization capabilities and making the first 3D printer model to simulate.
