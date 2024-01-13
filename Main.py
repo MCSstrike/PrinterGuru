@@ -135,6 +135,14 @@ class MainWindow(QMainWindow):
                     self.actor.SetUserTransform(transform) # Update actor with transform changes
         self.renderer.GetRenderWindow().Render()           # Updates renderer
 
+    # Sends the position data to the hardware controller
+    def sendToController(self, position):
+        if int(config["HARDWARE_CONTROLLER"]["outputToController"]):
+            str = ["X", "Y", "Z"] # Array to assist coord printout
+            for i in range(3):    # Loops three times for each coord
+                print(f"{str[i]} = {position[i]}") # Prints out the coordinate and the value later to be changed to send data to controller
+            print()
+
     # Scans model directory for file names
     def getFileNames(self):
         # Import and get printer model, .obj, and .mtl file names in specified folder
@@ -251,13 +259,15 @@ class MainWindow(QMainWindow):
 
     # Updates the label of the x, y, and z sliders
     def updateLabel(self):
-        position = []      # Initalises the position array
+        positionSim = []      # Initalises the position array
+        positionReal = []      # Initalises the position array
         for i in range(3): # Loops three times for x, y, z
-            currentPosition = self.sliders[i][1].value()            # Get current position of slider
-            position.append(self.convert(i, currentPosition))       # Converts current position to match simulated ranges and adds to position list
-            self.sliders[i][0].setText(f"Value: {currentPosition}") # Sets slider label to current position
+            positionReal.append(self.sliders[i][1].value())         # Get current position of slider
+            positionSim.append(self.convert(i, positionReal[i]))    # Converts current position to match simulated ranges and adds to position list
+            self.sliders[i][0].setText(f"Value: {positionReal[i]}") # Sets slider label to current position
 
-        self.updatePrinterPosition(position) # Updates printer position with generated position array
+        self.updatePrinterPosition(positionSim) # Updates the simulated printer position with generated coordinates
+        self.sendToController(positionReal)     # Sends the real printer position with generated coordinates
 
     # Rebuilds the printer object file to be compatible with vtk
     def RebuildPrinterModel(self):
@@ -340,14 +350,12 @@ class MainWindow(QMainWindow):
 class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
     # Initalises the custom interactor style object
     def __init__(self, parent=None):
+        # Listen setup events and initial parameters
         self.AddObserver("MiddleButtonPressEvent", self.middleButtonPressEvent)     # Add event listener for middle mouse button pressed
         self.AddObserver("MiddleButtonReleaseEvent", self.middleButtonReleaseEvent) # Add event listener for middle mouse button released
         self.AddObserver("MouseWheelForwardEvent", self.mouseWheelForwardEvent)     # Add event listener for mouse scroll forward
         self.AddObserver("MouseWheelBackwardEvent", self.mouseWheelBackwardEvent)   # Add event listener for mouse scroll backward
         self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)                     # Add event listener for mouse movement
-
-        self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)  # Add event listener for mouse movement
-
         self.isPanning = False  # Set panning to false
         self.isRotating = False # Set rotating to false
 

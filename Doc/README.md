@@ -48,6 +48,9 @@ This 3D printer model processing will only run when the user sets the setting.in
 The Dock gives further utilisation of the vtk window. It has control for the 3D printer's x, y, and z position and can reset the camera view.
 The "Home View" of the camera has been designed to give you a good geometric view of the printer and any models that may be on the bed whilst blocking as little of the printer bed as possible
 
+## Outputs XYZ Coordinates to controller
+Currently this prints the XYZ coordinates out but later will be configured to output to a hardware controller, probably over serial
+
 ## Current Status
 As of now, the application:
 - Initializes and displays the main window with a 3D visualization area and a dockable sidebar.
