@@ -33,6 +33,7 @@ class MainWindow(QMainWindow):
         self.frame = QFrame()             # Formats frame (container) for the 3D visualisation
         self.vl = QVBoxLayout()           # Lines up widgets vertically
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame) # Puts a embeded VTK render window inside a Qt application, in this case self.frame
+        self.vtkWidget.setFocusPolicy(Qt.StrongFocus)
         self.vl.addWidget(self.vtkWidget) # Adds the VTK render window interactor to the layout self.vl
 
         # Retrieves and prepares the printer model for importing and rendering
@@ -344,6 +345,9 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.AddObserver("MouseWheelForwardEvent", self.mouseWheelForwardEvent)     # Add event listener for mouse scroll forward
         self.AddObserver("MouseWheelBackwardEvent", self.mouseWheelBackwardEvent)   # Add event listener for mouse scroll backward
         self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)                     # Add event listener for mouse movement
+
+        self.AddObserver("MouseMoveEvent", self.mouseMoveEvent)  # Add event listener for mouse movement
+
         self.isPanning = False  # Set panning to false
         self.isRotating = False # Set rotating to false
 
@@ -376,7 +380,7 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
             self.Rotate()              # Rotates object
         return
 
-    # Mouse wheel forward method
+        # Mouse wheel forward method
     def mouseWheelForwardEvent(self, obj, event):
         camera = self.GetInteractor().GetRenderWindow().GetRenderers().GetFirstRenderer().GetActiveCamera() # Get active camera from render window
         camera.Zoom(1.1111)                             # Zoom in
